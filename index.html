@@ -233,7 +233,7 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
-import { getDatabase, ref, set, push, get, onChildAdded, onValue, off, update, query, orderByChild, equalTo } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js";
+import { getDatabase, ref, set, push, get, onChildAdded, onValue, off, update } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCEdtncZpDgOSnULIjopee7GKh9h9hveKk",
@@ -528,24 +528,30 @@ document.getElementById("logoutBtn").onclick=async()=>{
   show(loginScreen);
 };
 
-// --- HELPER FUNCTION TO FIND USER BY USERNAME (for simplified search) ---
+// --- NEW HELPER FUNCTION TO FIND USER BY USERNAME (simplified search, fixed) ---
 async function findUserByUsername(username) {
   const usersRef = ref(db, 'users');
-  // Query users where username is equal to the input
-  const q = query(usersRef, orderByChild('username'), equalTo(username));
-  const snap = await get(q);
+  const snap = await get(usersRef);
   
+  if (!snap.exists()) return null;
+  
+  const users = snap.val();
+  const searchUsername = username.toLowerCase(); // Ensure case-insensitive search
+
   let result = null;
-  if (snap.exists()) {
-    // Return the first user found (should only be one if usernames are unique)
-    snap.forEach(child => {
-      result = { uid: child.key, ...child.val() };
-    });
+  
+  // Iterate through all users to find a match
+  for (const uid in users) {
+    if (users[uid].username && users[uid].username.toLowerCase() === searchUsername) {
+      result = { uid: uid, ...users[uid] };
+      break; 
+    }
   }
   return result;
 }
 
-// --- GROUP BUTTON (SIMPLIFIED) ---
+
+// --- GROUP BUTTON (USES NEW SIMPLIFIED HELPER) ---
 document.getElementById("groupBtn").onclick=async()=>{
   const name=prompt("Group name:");
   if(!name)return;
@@ -555,7 +561,7 @@ document.getElementById("groupBtn").onclick=async()=>{
 
   const memberIds=[currentUser.uid];
   
-  // Look up each user
+  // Look up each user using the updated helper
   for (const uname of usernames) {
     const user = await findUserByUsername(uname);
     if (user) {
@@ -598,7 +604,7 @@ document.getElementById("dmBtn").onclick=async()=>{
   if (!uname) return;
 
   try {
-    // 1. Look up the UID from the 'users' path
+    // 1. Look up the UID from the 'users' path using the FIXED helper
     const otherUser = await findUserByUsername(uname);
     if (!otherUser) {
       return alert("User not found.");
