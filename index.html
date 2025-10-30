@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -89,8 +88,7 @@
     border-bottom: 1px solid #333333;
     font-size: 1.3rem;
   }
-  /* Crucial: Add padding for the fixed bottom menu */
-  #chatList { flex: 1; overflow-y: auto; padding-bottom: 70px; } 
+  #chatList { flex: 1; overflow-y: auto; padding-bottom: 70px; }
   .chatItem {
     padding: 15px 20px; 
     border-bottom: 1px solid #333333;
@@ -116,7 +114,7 @@
       margin-top: 2px;
   }
 
-  /* Bottom Menu */
+  /* Bottom Menu (Now without the Find User button) */
   #bottomMenu {
     display: flex;
     justify-content: space-around;
@@ -141,7 +139,11 @@
     transition: background 0.3s;
   }
   #bottomMenu button:hover { background: #0056b3; }
-
+  
+  /* Center the remaining two buttons */
+  #bottomMenu #groupBtn { margin-right: 10px; }
+  #bottomMenu #logoutBtn { margin-left: 10px; }
+  
   /* --- 3. CHAT SCREEN --- */
   #chatScreen { background: #121212; }
   #chatHeader {
@@ -310,75 +312,6 @@
   }
   #sendBtn:hover { background: #0056b3; }
   #sendBtn:active { transform: scale(0.95); }
-
-  /* --- 4. USER SEARCH SCREEN (NEW STYLES) --- */
-  #searchScreen {
-      /* Added flex: 1 to ensure it takes up vertical space like other screens */
-      flex: 1; 
-      display: none;
-      flex-direction: column;
-      height: 100%;
-      background: #1e1e1e;
-  }
-  #searchHeader {
-      background: #121212;
-      color: white;
-      padding: 16px 20px;
-      font-weight: 700;
-      border-bottom: 1px solid #333333;
-      font-size: 1.3rem;
-      display: flex;
-      align-items: center;
-      /* Fixed z-index to ensure it sits above the search results */
-      z-index: 5;
-  }
-  #searchHeader button {
-      background: none;
-      border: none;
-      color: white;
-      font-size: 1.4rem;
-      cursor: pointer;
-      margin-right: 15px;
-  }
-  #searchHeader input {
-      flex-grow: 1;
-      padding: 8px 15px;
-      border-radius: 20px;
-      border: none;
-      background: #333333;
-      color: #ffffff;
-      font-size: 1rem;
-      outline: none;
-  }
-  #searchResults {
-      flex: 1;
-      overflow-y: auto;
-  }
-  .searchResultItem {
-      padding: 15px 20px;
-      border-bottom: 1px solid #333333;
-      cursor: pointer;
-      transition: background 0.2s;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-  }
-  .searchResultItem:hover { background: #252526; }
-  .searchResultItem .searchName {
-      font-size: 1.1rem;
-      font-weight: 500;
-  }
-  .searchResultItem button {
-      background: #00aaff;
-      color: white;
-      border: none;
-      padding: 6px 12px;
-      border-radius: 5px;
-      cursor: pointer;
-      font-size: 0.9rem;
-      transition: background 0.2s;
-  }
-  .searchResultItem button:hover { background: #0077cc; }
   
   /* --- MEDIA QUERY: DESKTOP/TABLET OPTIMIZATION --- */
   @media (min-width: 700px) {
@@ -432,22 +365,11 @@
     <div id="chatListHeader">Whisp Chats</div>
     <div id="chatList"></div>
     <div id="bottomMenu">
-      <button id="searchBtn">Find User</button>
       <button id="groupBtn">New Group</button>
       <button id="logoutBtn">Logout</button>
     </div>
   </section>
   
-  <section id="searchScreen" class="screen">
-      <div id="searchHeader">
-          <button id="searchBackBtn">←</button>
-          <input id="searchUserInput" placeholder="Search by username..." />
-      </div>
-      <div id="searchResults">
-          <div style="padding: 20px; text-align: center; color: #888;">Type at least 2 characters to search for users.</div>
-      </div>
-  </section>
-
   <section id="chatScreen" class="screen">
     <div id="chatHeader">
       <div class="main-row">
@@ -493,7 +415,7 @@ const db = getDatabase(app);
 const loginScreen=document.getElementById("loginScreen"),
       chatListScreen=document.getElementById("chatListScreen"),
       chatScreen=document.getElementById("chatScreen"),
-      searchScreen=document.getElementById("searchScreen"), 
+      // searchScreen removed
       chatList=document.getElementById("chatList"),
       messagesDiv=document.getElementById("messages"),
       replyBar=document.getElementById("replyBar"),
@@ -501,18 +423,17 @@ const loginScreen=document.getElementById("loginScreen"),
       cancelReplyBtn=document.getElementById("cancelReply"),
       messageInput=document.getElementById("message"),
       typingIndicator=document.getElementById("typingIndicator"),
-      chatStatus=document.getElementById("chatStatus"),
-      searchUserInput=document.getElementById("searchUserInput"), 
-      searchResultsDiv=document.getElementById("searchResults"); 
+      chatStatus=document.getElementById("chatStatus");
+      // searchUserInput and searchResultsDiv removed
 
 let currentUser=null, currentChatId=null, replyTo=null, currentListenerRef=null, otherUserUid=null; 
 let currentChatIsGroup=false, chatMembers={};
 let typingTimer=null, typingStatusRef=null; 
 
-let allUsersCache = {}; 
 let activeMessageListeners = new Set();
 
-const show=(s)=>{[loginScreen,chatListScreen,chatScreen,searchScreen].forEach(e=>e.classList.remove("active"));s.classList.add("active");}; 
+// Updated 'show' function to exclude the search screen
+const show=(s)=>{[loginScreen,chatListScreen,chatScreen].forEach(e=>e.classList.remove("active"));s.classList.add("active");}; 
 
 // --- PRESENCE HANDLERS ---
 
@@ -600,33 +521,6 @@ document.getElementById("loginBtn").onclick = async () => {
   }
 };
 
-// --- NEW: FETCH ALL USERS FOR CACHE (Used by search screen) ---
-async function fetchAllUsers() {
-    try {
-        const usersRef = ref(db, 'users');
-        const snap = await get(usersRef);
-        
-        if (snap.exists()) {
-            const users = snap.val();
-            allUsersCache = {};
-            let count = 0;
-            for (const uid in users) {
-                if (users[uid].username) {
-                    allUsersCache[uid] = users[uid].username;
-                    count++;
-                }
-            }
-            console.log(`[DEBUG] Successfully cached ${count} users for search.`);
-        } else {
-            console.log("[DEBUG] No users found in database for caching.");
-        }
-    } catch (error) {
-        console.error("[DEBUG] Error fetching all users:", error);
-        alert("Failed to load user data for search. Check your Firebase rules and connection.");
-    }
-}
-
-
 onAuthStateChanged(auth, async user => {
   if(user){
     currentUser=user;
@@ -635,9 +529,7 @@ onAuthStateChanged(auth, async user => {
     goOnline(); 
     show(chatListScreen);
     listenForUnread();
-    
-    // --- CRITICAL STEP: Ensure we wait for users to load before doing anything else ---
-    await fetchAllUsers(); 
+    // fetchAllUsers removed
   } else {
     currentUser=null;
     activeMessageListeners.forEach(chatId => {
@@ -1083,7 +975,7 @@ async function findUserByUsername(username) {
   return result;
 }
 
-// --- GROUP BUTTON ---
+// --- GROUP BUTTON (Still works using the findUserByUsername helper) ---
 document.getElementById("groupBtn").onclick=async()=>{
   const name=prompt("Group name:");
   if(!name)return;
@@ -1132,123 +1024,6 @@ document.getElementById("groupBtn").onclick=async()=>{
 
   loadChats();
 };
-
-// --- NEW: USER SEARCH SCREEN LOGIC ---
-
-document.getElementById("searchBtn").onclick = () => {
-    searchUserInput.value = "";
-    searchResultsDiv.innerHTML = `<div style="padding: 20px; text-align: center; color: #888;">Type at least 2 characters to search for users.</div>`;
-    show(searchScreen);
-};
-
-document.getElementById("searchBackBtn").onclick = () => {
-    show(chatListScreen);
-};
-
-searchUserInput.addEventListener('input', () => {
-    const queryText = searchUserInput.value.trim().toLowerCase();
-    searchResultsDiv.innerHTML = "";
-    
-    if (queryText.length < 2) {
-        searchResultsDiv.innerHTML = `<div style="padding: 20px; text-align: center; color: #888;">Type at least 2 characters to search for users.</div>`;
-        return;
-    }
-
-    let foundResults = 0;
-    
-    // Search within the cached user list
-    for (const uid in allUsersCache) {
-        const username = allUsersCache[uid];
-        if (uid !== currentUser.uid && username.toLowerCase().includes(queryText)) {
-            renderSearchResult(uid, username);
-            foundResults++;
-        }
-    }
-    
-    if (foundResults === 0) {
-        searchResultsDiv.innerHTML = `<div style="padding: 20px; text-align: center; color: #888;">No users found matching "${searchUserInput.value}".</div>`;
-    }
-});
-
-function renderSearchResult(uid, username) {
-    const div = document.createElement("div");
-    div.className = "searchResultItem";
-    div.innerHTML = `
-        <span class="searchName">${username}</span>
-        <button data-uid="${uid}" data-username="${username}">DM</button>
-    `;
-    
-    div.querySelector('button').onclick = (e) => startDmFromSearch(e.target.dataset.uid, e.target.dataset.username);
-    searchResultsDiv.append(div);
-}
-
-async function startDmFromSearch(otherUid, otherUsername) {
-  try {
-    // 1. Check if a DM with this user already exists in userChats
-    const userChatsSnap = await get(ref(db, `userChats/${currentUser.uid}`));
-    let existingChatId = null;
-
-    if (userChatsSnap.exists()) {
-        userChatsSnap.forEach(chatChild => {
-            const chatData = chatChild.val();
-            // Checking both otherUid and that it's a DM (isGroup: false)
-            if (chatData.otherUid === otherUid && chatData.isGroup === false) {
-                existingChatId = chatChild.key;
-            }
-        });
-    }
-
-    if (existingChatId) {
-        // Chat exists, navigate to it
-        alert(`DM with ${otherUsername} already exists! Opening chat...`);
-        show(chatListScreen);
-        await loadChats();
-        openChat(existingChatId, otherUsername);
-        return;
-    }
-
-    // 2. DM does not exist, create it 
-    const refNew = push(ref(db, "chats"));
-    const newMembersMap = { [currentUser.uid]: true, [otherUid]: true };
-    const creationTime = Date.now(); 
-    
-    await set(refNew, {
-      name: otherUsername, 
-      isGroup: false,
-      members: newMembersMap
-    });
-    
-    const currentUserProfileSnap = await get(ref(db, "users/" + currentUser.uid));
-    const currentUsername = currentUserProfileSnap.val() ? currentUserProfileSnap.val().username : "You";
-
-    await update(ref(db), {
-      // Current User's side (You)
-      [`/userChats/${currentUser.uid}/${refNew.key}`]: { 
-          name: otherUsername, 
-          isGroup: false,
-          lastMessageTime: creationTime,
-          otherUid: otherUid,
-          lastMessageText: "DM created"
-      }, 
-      // Other User's side
-      [`/userChats/${otherUid}/${refNew.key}`]: { 
-          name: currentUsername, 
-          isGroup: false,
-          lastMessageTime: creationTime,
-          otherUid: currentUser.uid,
-          lastMessageText: "DM created"
-      } 
-    });
-
-    // 3. Navigate to the new chat
-    show(chatListScreen);
-    await loadChats();
-    openChat(refNew.key, otherUsername);
-
-  } catch (e) {
-    alert("Error creating DM: " + e.message);
-  }
-}
 
 // --- LISTEN FOR UNREAD ---
 function listenForUnread(){
