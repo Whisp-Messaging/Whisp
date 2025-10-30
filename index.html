@@ -266,7 +266,7 @@ let activeMessageListeners = new Set();
 
 const show=(s)=>{[loginScreen,chatListScreen,chatScreen].forEach(e=>e.classList.remove("active"));s.classList.add("active");};
 
-// --- LOGIN HANDLER (SIMPLIFIED) ---
+// --- LOGIN HANDLER (SIMPLIFIED FOR EDUCATIONAL USE) ---
 document.getElementById("loginBtn").onclick = async () => {
   const emailVal = document.getElementById("email").value.trim();
   const passwordVal = document.getElementById("password").value.trim();
@@ -287,7 +287,7 @@ document.getElementById("loginBtn").onclick = async () => {
       const finalUsername = usernameVal || emailVal.split("@")[0];
       const uid = cred.user.uid;
       
-      // Set user profile (for DM lookups)
+      // Set user profile (Crucial for DM lookups/naming)
       await set(ref(db, "users/" + uid), { 
         username: finalUsername, 
         email: emailVal 
@@ -315,7 +315,7 @@ onAuthStateChanged(auth, async user => {
   }
 });
 
-// --- LOAD CHATS (DM NAMING FIXES APPLIED) ---
+// --- LOAD CHATS (FIXED FOR BACKWARD COMPATIBILITY) ---
 async function loadChats(){
   chatList.innerHTML="";
   const chatsSnap = await get(ref(db,"chats"));
@@ -325,17 +325,32 @@ async function loadChats(){
   const chatPromises = Object.keys(chats).map(async (id) => {
     const chat = chats[id];
     
-    // Check membership using Object Map keys
-    if(!chat.members || !chat.members[currentUser.uid]) {
+    // --- FIX: Robust Membership Check (handles both Array and Object Map) ---
+    let isMember = false;
+    let memberUids = [];
+    
+    if (chat.members) {
+      if (Array.isArray(chat.members)) {
+        // Handle OLD array format
+        isMember = chat.members.includes(currentUser.uid);
+        memberUids = chat.members;
+      } else if (typeof chat.members === 'object') {
+        // Handle NEW object map format
+        isMember = !!chat.members[currentUser.uid];
+        memberUids = Object.keys(chat.members);
+      }
+    }
+    
+    if(!isMember) {
       return null;
     }
+    // --- END FIX ---
 
     let chatName = chat.name;
     const isDM = chat.isGroup === false;
     
     // If it's a DM, find the other user and get their username
     if (isDM) {
-      const memberUids = Object.keys(chat.members);
       const otherUid = memberUids.find(uid => uid !== currentUser.uid);
       if (otherUid) {
         try {
@@ -385,9 +400,12 @@ async function openChat(id,name){
   const chat=chatSnap.val();
   currentChatIsGroup = chat.isGroup || false;
 
-  // load member usernames by iterating over the object map keys
+  // load member usernames by iterating over the members list/map
   if(chat.members){
-    for(const uid of Object.keys(chat.members)){
+    // Use the correct method to get UIDs based on format
+    const memberUids = Array.isArray(chat.members) ? chat.members : Object.keys(chat.members);
+
+    for(const uid of memberUids){
       try {
         const uSnap = await get(ref(db,"users/"+uid));
         if(uSnap.exists()) chatMembers[uid] = uSnap.val().username || "Unknown";
@@ -643,8 +661,17 @@ function listenForUnread(){
       const chatId = chatSnap.key;
       const chat = chatSnap.val();
       
-      // Check membership using Object Map keys
-      if(!chat.members || !chat.members[currentUser.uid]) return;
+      // Check membership (handles both Array and Object Map)
+      let isMember = false;
+      if (chat.members) {
+        if (Array.isArray(chat.members)) {
+          isMember = chat.members.includes(currentUser.uid);
+        } else if (typeof chat.members === 'object') {
+          isMember = !!chat.members[currentUser.uid];
+        }
+      }
+
+      if(!isMember) return;
 
       if(activeMessageListeners.has(chatId)) return;
       activeMessageListeners.add(chatId);
