@@ -20,7 +20,7 @@
   }
   main {
     height: 100%;
-    width: 100%; /* Default to full width/height on all devices */
+    width: 100%; 
     display: flex;
     flex-direction: column;
     background: #1e1e1e; /* Main app background - slightly lighter than body */
@@ -374,16 +374,14 @@
   }
   .searchResultItem button:hover { background: #0077cc; }
   
-  /* --- MEDIA QUERY: DESKTOP/TABLET OPTIMIZATION --- */
+  /* --- MEDIA QUERY: DESKTOP/TABLET OPTIMIZATION (Full Screen) --- */
   @media (min-width: 700px) {
-    /* Main container is now full screen on desktop/tablet */
     main { 
-        max-width: 100%; /* Removes the mobile width constraint */
-        height: 100vh; /* Full vertical height */
-        margin: 0; /* Remove centering margin */
-        border-radius: 0; /* Remove rounded corners */
+        max-width: 100%; 
+        height: 100vh; 
+        margin: 0; 
+        border-radius: 0; 
     }
-    /* Fixed bottom menu now correctly stays at the bottom of the full screen */
     #bottomMenu { 
         position: fixed; 
         padding: 10px 0;
@@ -393,14 +391,17 @@
     }
   }
 
-  /* --- MEDIA QUERY: MOBILE OPTIMIZATION (re-apply sleek size) --- */
+  /* --- MEDIA QUERY: MOBILE OPTIMIZATION (Centered, Sleek) --- */
   @media (max-width: 699px) {
     main {
-        max-width: 600px; /* Keep it constrained for a good mobile look */
+        max-width: 600px; 
         height: 100%;
+        margin: 0 auto; /* Ensures centering */
     }
     #bottomMenu {
-        max-width: 600px; /* Keep the menu fixed to the mobile container width */
+        max-width: 600px; 
+        left: 50%; /* Re-apply centering for fixed menu */
+        transform: translateX(-50%);
     }
   }
 </style>
@@ -481,7 +482,7 @@ const db = getDatabase(app);
 const loginScreen=document.getElementById("loginScreen"),
       chatListScreen=document.getElementById("chatListScreen"),
       chatScreen=document.getElementById("chatScreen"),
-      searchScreen=document.getElementById("searchScreen"), // NEW
+      searchScreen=document.getElementById("searchScreen"),
       chatList=document.getElementById("chatList"),
       messagesDiv=document.getElementById("messages"),
       replyBar=document.getElementById("replyBar"),
@@ -490,17 +491,17 @@ const loginScreen=document.getElementById("loginScreen"),
       messageInput=document.getElementById("message"),
       typingIndicator=document.getElementById("typingIndicator"),
       chatStatus=document.getElementById("chatStatus"),
-      searchUserInput=document.getElementById("searchUserInput"), // NEW
-      searchResultsDiv=document.getElementById("searchResults"); // NEW
+      searchUserInput=document.getElementById("searchUserInput"),
+      searchResultsDiv=document.getElementById("searchResults");
 
 let currentUser=null, currentChatId=null, replyTo=null, currentListenerRef=null, otherUserUid=null; 
 let currentChatIsGroup=false, chatMembers={};
 let typingTimer=null, typingStatusRef=null; 
 
-let allUsersCache = {}; // NEW: Cache for all users
+let allUsersCache = {}; 
 let activeMessageListeners = new Set();
 
-const show=(s)=>{[loginScreen,chatListScreen,chatScreen,searchScreen].forEach(e=>e.classList.remove("active"));s.classList.add("active");}; // Updated 'show' function
+const show=(s)=>{[loginScreen,chatListScreen,chatScreen,searchScreen].forEach(e=>e.classList.remove("active"));s.classList.add("active");};
 
 // --- PRESENCE HANDLERS ---
 
@@ -596,7 +597,7 @@ onAuthStateChanged(auth, async user => {
     goOnline(); 
     show(chatListScreen);
     listenForUnread();
-    fetchAllUsers(); // NEW: Pre-load all users for search
+    fetchAllUsers();
   } else {
     currentUser=null;
     activeMessageListeners.forEach(chatId => {
@@ -1108,15 +1109,13 @@ document.getElementById("groupBtn").onclick=async()=>{
   loadChats();
 };
 
-// --- DM BUTTON (REMOVED: Replaced by the Search Screen) ---
-// document.getElementById("dmBtn") has been replaced by the Search Screen logic below. 
-// We are leaving the old DM creation logic (used by the search screen's button) intact.
-
 // --- NEW: USER SEARCH SCREEN LOGIC ---
 
 document.getElementById("searchBtn").onclick = () => {
     searchUserInput.value = "";
     searchResultsDiv.innerHTML = "";
+    // Display a prompt to the user when the search screen opens
+    searchResultsDiv.innerHTML = `<div style="padding: 20px; text-align: center; color: #888;">Start typing a username to search.</div>`;
     show(searchScreen);
 };
 
@@ -1167,9 +1166,11 @@ async function startDmFromSearch(otherUid, otherUsername) {
     let existingChatId = null;
 
     if (userChatsSnap.exists()) {
-        for (const chatChild of Object.values(userChatsSnap.val())) {
+        const chats = userChatsSnap.val();
+        for (const chatId in chats) {
+            const chatChild = chats[chatId];
             if (chatChild.otherUid === otherUid && chatChild.isGroup === false) {
-                existingChatId = chatChild.key;
+                existingChatId = chatId;
                 break;
             }
         }
