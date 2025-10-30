@@ -113,16 +113,22 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    flex-direction: column; /* Allow space for typing indicator */
+    flex-direction: column; 
   }
   #chatHeader button { background: none; border: none; color: white; font-size: 1.2rem; cursor: pointer; padding: 0 10px; }
-  #chatHeader div { width: 100%; display: flex; justify-content: space-between; align-items: center; }
+  
+  #chatHeader div.main-row { width: 100%; display: flex; justify-content: space-between; align-items: center; }
+  #chatNameContainer { display: flex; flex-direction: column; align-items: flex-start; }
   #chatName { font-size: 1.1rem; font-weight: 600; }
   
+  /* Status Styles */
+  #chatStatus { font-size: 0.8rem; color: #aaa; height: 16px; }
+  #chatStatus.online { color: #00ff8c; } /* Green for online */
+
   /* Typing Indicator Style */
   #typingIndicator { 
     font-size: 0.8rem; 
-    color: #00c7ff; /* Bright blue for visibility */
+    color: #00c7ff; 
     font-style: italic;
     height: 18px; 
     text-align: left;
@@ -143,13 +149,13 @@
   }
   .me {
     align-self: flex-end;
-    background: #0056b3; /* Primary accent for "me" */
+    background: #0056b3; 
     color: white;
     border-bottom-right-radius: 4px;
   }
   .them {
     align-self: flex-start;
-    background: #333; /* Darker grey for "them" */
+    background: #333; 
     color: #e0e0e0;
     border-bottom-left-radius: 4px;
   }
@@ -229,9 +235,12 @@
 
   <section id="chatScreen" class="screen">
     <div id="chatHeader">
-      <div>
+      <div class="main-row">
         <button id="backBtn">←</button>
-        <span id="chatName">Chat</span>
+        <div id="chatNameContainer">
+            <span id="chatName">Chat</span>
+            <span id="chatStatus"></span>
+        </div>
       </div>
       <div id="typingIndicator"></div>
     </div>
@@ -250,7 +259,7 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
-import { getDatabase, ref, set, push, get, onChildAdded, onValue, off, update, remove } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js";
+import { getDatabase, ref, set, push, get, onChildAdded, onValue, off, update, remove, onDisconnect } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCEdtncZpDgOSnULIjopee7GKh9h9hveKk",
@@ -275,15 +284,63 @@ const loginScreen=document.getElementById("loginScreen"),
       replyText=document.getElementById("replyText"),
       cancelReplyBtn=document.getElementById("cancelReply"),
       messageInput=document.getElementById("message"),
-      typingIndicator=document.getElementById("typingIndicator");
+      typingIndicator=document.getElementById("typingIndicator"),
+      chatStatus=document.getElementById("chatStatus"); // NEW: Chat Status element
 
-let currentUser=null, currentChatId=null, replyTo=null, currentListenerRef=null;
+let currentUser=null, currentChatId=null, replyTo=null, currentListenerRef=null, otherUserUid=null; // NEW: otherUserUid
 let currentChatIsGroup=false, chatMembers={};
 let typingTimer=null, typingStatusRef=null; 
 
 let activeMessageListeners = new Set();
 
 const show=(s)=>{[loginScreen,chatListScreen,chatScreen].forEach(e=>e.classList.remove("active"));s.classList.add("active");};
+
+// --- PRESENCE HANDLERS (NEW) ---
+
+// Utility function to format last seen timestamp
+function formatLastSeen(timestamp) {
+    if (!timestamp) return "";
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    
+    // Less than a minute ago
+    if (diff < 60000) return "just now";
+    // Less than an hour ago
+    if (diff < 3600000) return `Last seen ${Math.floor(diff / 60000)}m ago`;
+    // Today
+    if (date.toDateString() === now.toDateString()) return `Last seen today at ${date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
+    // Yesterday
+    const yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1);
+    if (date.toDateString() === yesterday.toDateString()) return `Last seen yesterday at ${date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
+    
+    // Full date
+    return `Last seen ${date.toLocaleDateString()} at ${date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
+}
+
+async function goOnline() {
+    if (!currentUser) return;
+    const isOnlineRef = ref(db, 'presence/' + currentUser.uid);
+
+    // 1. Write the current user's online status
+    await set(isOnlineRef, true);
+
+    // 2. Set the `onDisconnect` hook (CRUCIAL for last seen)
+    // When the user disconnects, set their status to the current server timestamp
+    onDisconnect(isOnlineRef).set(Date.now());
+}
+
+async function goOffline() {
+    if (!currentUser) return;
+    const isOnlineRef = ref(db, 'presence/' + currentUser.uid);
+
+    // 1. Cancel the `onDisconnect` hook if we're manually signing out
+    onDisconnect(isOnlineRef).cancel();
+
+    // 2. Manually write the `lastSeen` timestamp
+    await set(isOnlineRef, Date.now());
+}
 
 // --- LOGIN HANDLER (WITH USERNAME UNIQUENESS CHECK) ---
 document.getElementById("loginBtn").onclick = async () => {
@@ -342,10 +399,12 @@ onAuthStateChanged(auth, async user => {
     currentUser=user;
     activeMessageListeners = new Set();
     await loadChats();
+    goOnline(); // Go online when authenticated
     show(chatListScreen);
     listenForUnread();
   } else {
     currentUser=null;
+    // Note: goOffline is called on logout button click for manual sign out
     activeMessageListeners.forEach(chatId => {
       try { off(ref(db,"chats/"+chatId+"/messages")); } catch(_) {}
     });
@@ -354,7 +413,7 @@ onAuthStateChanged(auth, async user => {
   }
 });
 
-// --- LOAD CHATS (FIXED FOR BACKWARD COMPATIBILITY AND SORTING) ---
+// --- LOAD CHATS (SORTED) ---
 async function loadChats(){
   chatList.innerHTML="";
   
@@ -365,15 +424,13 @@ async function loadChats(){
   const chatPromises = [];
   userChatsSnap.forEach(chatChild => {
       const chatId = chatChild.key;
-      const data = chatChild.val(); // Contains name, isGroup, unread, and NEW: lastMessageTime
+      const data = chatChild.val(); 
       
-      // Fetch the main chat object for members list (needed for DM name lookup and backward compatibility)
       const chatPromise = get(ref(db, `chats/${chatId}`)).then(chatSnap => {
           if (!chatSnap.exists()) return null;
           
           const chat = chatSnap.val();
           
-          // --- Robust Membership Check ---
           let isMember = false;
           let memberUids = [];
           if (chat.members) {
@@ -386,25 +443,13 @@ async function loadChats(){
             }
           }
           if(!isMember) return null;
-          // --- End Membership Check ---
           
           let chatName = data.name;
-          const isDM = data.isGroup === false;
-          
-          // If it's a DM, find the other user and get their username from the /users node
-          // We rely on the name stored in /userChats (data.name) unless it's a very old entry,
-          // but we still ensure we have the correct UID to fetch the name if needed.
-          if (isDM && chatName === "DM") { // Only lookup if the name hasn't been set properly
-             const otherUid = memberUids.find(uid => uid !== currentUser.uid);
-             if (otherUid) {
-               chatName = chatMembers[otherUid] || "DM";
-             }
-          }
 
           return { 
               id: chatId, 
               name: chatName, 
-              lastTime: data.lastMessageTime || 0, // Use 0 if no time exists (for sorting new chats)
+              lastTime: data.lastMessageTime || 0,
               unread: data.unread
           };
       });
@@ -445,7 +490,7 @@ function stopTyping(){
     typingStatusRef = null;
 }
 
-// --- OPEN CHAT (WITH TYPING LISTENER) ---
+// --- OPEN CHAT (WITH TYPING & PRESENCE LISTENER) ---
 async function openChat(id,name){
   stopTyping(); 
   
@@ -453,7 +498,11 @@ async function openChat(id,name){
   document.getElementById("chatName").textContent=name;
   messagesDiv.innerHTML="";
   typingIndicator.textContent = ""; 
+  chatStatus.textContent = ""; // Reset status
+  chatStatus.classList.remove("online");
   chatMembers = {}; 
+  otherUserUid = null; // Reset other user UID
+
   show(chatScreen);
 
   if(currentListenerRef){ off(currentListenerRef); currentListenerRef=null; }
@@ -475,9 +524,49 @@ async function openChat(id,name){
       } catch(e) {
         chatMembers[uid] = "Unknown";
       }
+      
+      // Determine the *single* other user for DM status tracking
+      if(!currentChatIsGroup && uid !== currentUser.uid) {
+          otherUserUid = uid;
+      }
     }
   }
   
+  // --- NEW: Presence Listener for DM Status ---
+  if (otherUserUid) {
+      const presenceRef = ref(db, 'presence/' + otherUserUid);
+      onValue(presenceRef, (snapshot) => {
+          if (!snapshot.exists()) {
+              chatStatus.textContent = "";
+              chatStatus.classList.remove("online");
+              return;
+          }
+          
+          const status = snapshot.val();
+          
+          if (status === true) {
+              // User is online
+              chatStatus.textContent = "Online";
+              chatStatus.classList.add("online");
+          } else if (typeof status === 'number') {
+              // User is offline, show last seen timestamp
+              chatStatus.textContent = `Last seen ${formatLastSeen(status)}`;
+              chatStatus.classList.remove("online");
+          } else {
+              chatStatus.textContent = "";
+              chatStatus.classList.remove("online");
+          }
+      });
+  } else if (!currentChatIsGroup) {
+      // Should only happen if the DM member list is empty/corrupt
+      chatStatus.textContent = "User status unavailable";
+  } else {
+      // Clear status for groups (we only track DM status simply)
+      chatStatus.textContent = "";
+  }
+  // --- END NEW: Presence Listener ---
+
+
   // --- Typing Indicator Listener ---
   const typingRef = ref(db, "typing/" + id);
   onValue(typingRef, (snapshot) => {
@@ -611,16 +700,16 @@ document.getElementById("sendBtn").onclick=async()=>{
   
   stopTyping();
   
-  const messageTime = Date.now(); // Get time before writing
+  const messageTime = Date.now(); 
   
   await push(ref(db,"chats/"+currentChatId+"/messages"),{
     sender:currentUser.uid,
     text,
     replyTo,
-    time: messageTime // Use the stored time
+    time: messageTime 
   });
   
-  // --- NEW: Update lastMessageTime for ALL chat members ---
+  // --- Update lastMessageTime for ALL chat members ---
   const chatSnap = await get(ref(db, "chats/" + currentChatId));
   const chat = chatSnap.val();
   let memberUids = [];
@@ -630,7 +719,6 @@ document.getElementById("sendBtn").onclick=async()=>{
 
   const userChatUpdates = {};
   memberUids.forEach(uid => {
-    // Note: The 'unread' flag should only be true for OTHERS, not the sender.
     if (uid !== currentUser.uid) {
       userChatUpdates[`/userChats/${uid}/${currentChatId}/unread`] = true;
     }
@@ -638,13 +726,11 @@ document.getElementById("sendBtn").onclick=async()=>{
   });
 
   await update(ref(db), userChatUpdates);
-  // --- END NEW UPDATE ---
   
   messageInput.value="";
   replyTo=null;
   replyBar.style.display="none";
   
-  // Relaod the list instantly to see the chat move to the top
   loadChats(); 
 };
 
@@ -660,6 +746,7 @@ document.getElementById("backBtn").onclick=()=>{
 document.getElementById("logoutBtn").onclick=async()=>{
   if(currentChatId) stopTyping();
   
+  await goOffline(); // Set last seen time manually on logout
   await signOut(auth);
   currentUser=null;
   show(loginScreen);
@@ -687,7 +774,7 @@ async function findUserByUsername(username) {
 }
 
 
-// --- GROUP BUTTON (USES NEW SIMPLIFIED HELPER) ---
+// --- GROUP BUTTON (WRITING lastMessageTime) ---
 document.getElementById("groupBtn").onclick=async()=>{
   const name=prompt("Group name:");
   if(!name)return;
@@ -723,12 +810,12 @@ document.getElementById("groupBtn").onclick=async()=>{
   });
   
   const userChatUpdates = {};
-  const creationTime = Date.now(); // Set the initial time
+  const creationTime = Date.now(); 
   memberIds.forEach(uid => {
     userChatUpdates[`/userChats/${uid}/${refNew.key}`] = { 
         name: name, 
         isGroup: true,
-        lastMessageTime: creationTime // Initial sort key
+        lastMessageTime: creationTime 
     };
   });
   await update(ref(db), userChatUpdates);
@@ -736,7 +823,7 @@ document.getElementById("groupBtn").onclick=async()=>{
   loadChats();
 };
 
-// --- DM BUTTON (UPDATED TO WRITE lastMessageTime) ---
+// --- DM BUTTON (WRITING lastMessageTime) ---
 document.getElementById("dmBtn").onclick=async()=>{
   const uname = prompt("Username to DM:");
   if (!uname) return;
@@ -754,7 +841,7 @@ document.getElementById("dmBtn").onclick=async()=>{
 
     const refNew = push(ref(db, "chats"));
     const newMembersMap = { [currentUser.uid]: true, [otherUid]: true };
-    const creationTime = Date.now(); // Set the initial time
+    const creationTime = Date.now(); 
     
     await set(refNew, {
       name: uname, 
@@ -770,13 +857,13 @@ document.getElementById("dmBtn").onclick=async()=>{
       [`/userChats/${currentUser.uid}/${refNew.key}`]: { 
           name: uname, 
           isGroup: false,
-          lastMessageTime: creationTime // Initial sort key
+          lastMessageTime: creationTime 
       }, 
       // Other user's side shows *your* username
       [`/userChats/${otherUid}/${refNew.key}`]: { 
           name: currentUsername, 
           isGroup: false,
-          lastMessageTime: creationTime // Initial sort key
+          lastMessageTime: creationTime 
       } 
     });
 
@@ -787,9 +874,8 @@ document.getElementById("dmBtn").onclick=async()=>{
   }
 };
 
-// --- LISTEN FOR UNREAD (Membership and Time fixes applied) ---
+// --- LISTEN FOR UNREAD ---
 function listenForUnread(){
-  // watch userChats to update UI unread markers
   const userChatsRef = ref(db,"userChats/"+currentUser.uid);
   onValue(userChatsRef,snap=>{
     if(!snap.exists()) return;
@@ -804,7 +890,6 @@ function listenForUnread(){
     });
   });
 
-  // iterate chats once and attach one message listener per chat
   onValue(ref(db,"chats"), snap => {
     if(!snap.exists()) return;
     snap.forEach(chatSnap => {
@@ -830,16 +915,13 @@ function listenForUnread(){
         const m = msgSnap.val();
 
         if(!m || !m.sender || m.sender === currentUser.uid) {
-           // If we're the sender, we already updated the lastMessageTime in sendBtn.onclick.
            return;
         }
 
-        // --- NEW: Update lastMessageTime for the RECEIVER ---
         update(ref(db, `/userChats/${currentUser.uid}/${chatId}`), {
-             lastMessageTime: m.time // Use the message's time
+             lastMessageTime: m.time 
         }).catch(()=>{});
 
-        // check user's lastRead for this chat
         get(ref(db,"userChats/"+currentUser.uid+"/"+chatId)).then(userChatSnap=>{
           const data = userChatSnap.val() || {};
           const lastRead = data.lastRead || 0;
