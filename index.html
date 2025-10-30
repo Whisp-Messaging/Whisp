@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -431,24 +432,31 @@ async function loadChats(){
           
           let isMember = false;
           let memberUids = [];
+          
+          // --- ROBUST MEMBER UID EXTRACTION ---
           if (chat.members) {
             if (Array.isArray(chat.members)) {
-              isMember = chat.members.includes(currentUser.uid);
               memberUids = chat.members;
             } else if (typeof chat.members === 'object') {
-              isMember = Object.keys(chat.members).includes(currentUser.uid);
               memberUids = Object.keys(chat.members);
             }
+            isMember = memberUids.includes(currentUser.uid);
           }
+          // --- END ROBUST EXTRACTION ---
+
           if(!isMember) return null;
           
-          let chatName = data.name;
-          const isDM = data.isGroup === false;
+          let chatName = data.name; // This is the potentially old/incorrect name
+          
+          // The DM check is now more robust: check userChats metadata OR check if it's a 2-person chat
+          const isDM = data.isGroup === false || (memberUids.length === 2 && chat.isGroup !== true);
           let updateNeeded = false; 
 
           // --- CRITICAL FIX: OVERRIDE DM NAME ---
           if (isDM) { 
+              // Find the one member who is not the current user
               const otherUid = memberUids.find(uid => uid !== currentUser.uid);
+              
               if (otherUid) {
                   const userSnap = await get(ref(db, "users/" + otherUid));
                   if (userSnap.exists()) {
@@ -457,15 +465,19 @@ async function loadChats(){
                       // Force the display name to be the current, correct name
                       chatName = correctName; 
                       
-                      // Check if DB correction is needed
-                      if (data.name !== correctName) {
+                      // Check if DB correction is needed (if the stored name is old, incorrect, or blank)
+                      if (data.name !== correctName || !data.name) { 
                           updateNeeded = true;    
                       }
                       chatMembers[otherUid] = chatName; // Update local cache
                   } else {
+                      // Handle if the other user was deleted or the reference is bad
                       chatName = "Deleted User";
-                      if (data.name !== chatName) updateNeeded = true;
+                      if (data.name !== chatName || !data.name) updateNeeded = true;
                   }
+              } else {
+                  // If we can't find an otherUid, it's an error state for a DM (e.g., deleted self from chat)
+                  chatName = "DM Setup Error";
               }
           }
           // --- END CRITICAL FIX ---
@@ -493,7 +505,9 @@ async function loadChats(){
     const div = document.createElement("div");
     div.className = "chatItem";
     div.dataset.id = item.id;
+    // CRITICAL: Display the corrected name
     div.textContent = item.name; 
+    
     if(item.unread) div.classList.add("unread"); 
     div.onclick = () => openChat(item.id, item.name); 
     chatList.append(div);
@@ -534,6 +548,7 @@ async function openChat(id,name){
   stopTyping(); 
   
   currentChatId=id;
+  // CRITICAL: Ensure the header name is set
   document.getElementById("chatName").textContent=name;
   messagesDiv.innerHTML="";
   typingIndicator.textContent = ""; 
