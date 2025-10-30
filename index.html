@@ -96,8 +96,8 @@
   }
   #bottomMenu button {
     background: #007bff;
+    color: white;
     border: none;
-    color: #fff;
     padding: 8px 16px;
     border-radius: 8px;
     font-weight: 600;
@@ -279,7 +279,7 @@ const loginScreen=document.getElementById("loginScreen"),
 
 let currentUser=null, currentChatId=null, replyTo=null, currentListenerRef=null;
 let currentChatIsGroup=false, chatMembers={};
-let typingTimer=null, typingStatusRef=null; // NEW: Typing variables
+let typingTimer=null, typingStatusRef=null; 
 
 let activeMessageListeners = new Set();
 
@@ -297,19 +297,17 @@ document.getElementById("loginBtn").onclick = async () => {
     try {
       // 1. Attempt login first (Standard flow)
       cred = await signInWithEmailAndPassword(auth, emailVal, passwordVal);
-      // If login succeeds, we're done here
       return; 
     } catch (e) {
       // 2. If login fails, assume registration attempt
       if(!usernameVal) {
-        // If login failed and no username provided, it's a simple login error.
         return alert("Login failed. If you are registering, please provide a username.");
       }
       
       const finalUsername = usernameVal || emailVal.split("@")[0];
       const normalizedUsername = finalUsername.toLowerCase();
 
-      // --- NEW UNIQUENESS CHECK ---
+      // --- UNIQUENESS CHECK ---
       const usersRef = ref(db, 'users');
       const snap = await get(usersRef);
       if (snap.exists()) {
@@ -317,12 +315,11 @@ document.getElementById("loginBtn").onclick = async () => {
         for (const uid in users) {
           const storedUsername = users[uid].username;
           if (storedUsername && storedUsername.toLowerCase() === normalizedUsername) {
-            // Username found! Block registration.
             return alert(`The username "${finalUsername}" is already taken. Please choose another.`);
           }
         }
       }
-      // --- END NEW UNIQUENESS CHECK ---
+      // --- END UNIQUENESS CHECK ---
       
       // 3. If uniqueness check passes, proceed with creating user
       cred = await createUserWithEmailAndPassword(auth, emailVal, passwordVal);
@@ -336,7 +333,6 @@ document.getElementById("loginBtn").onclick = async () => {
       });
     }
   } catch (e) {
-    // Catch any remaining errors (like Firebase's "email already in use")
     alert(e.message);
   }
 };
@@ -358,88 +354,87 @@ onAuthStateChanged(auth, async user => {
   }
 });
 
-// --- LOAD CHATS (FIXED FOR BACKWARD COMPATIBILITY) ---
+// --- LOAD CHATS (FIXED FOR BACKWARD COMPATIBILITY AND SORTING) ---
 async function loadChats(){
   chatList.innerHTML="";
-  const chatsSnap = await get(ref(db,"chats"));
-  if(!chatsSnap.exists()) return;
+  
+  // 1. Fetch chat metadata from the user's /userChats node
+  const userChatsSnap = await get(ref(db, `userChats/${currentUser.uid}`));
+  if(!userChatsSnap.exists()) return;
 
-  const chats = chatsSnap.val();
-  const chatPromises = Object.keys(chats).map(async (id) => {
-    const chat = chats[id];
-    
-    // --- FIX: Robust Membership Check (handles both Array and Object Map) ---
-    let isMember = false;
-    let memberUids = [];
-    
-    if (chat.members) {
-      if (Array.isArray(chat.members)) {
-        // Handle OLD array format
-        isMember = chat.members.includes(currentUser.uid);
-        memberUids = chat.members;
-      } else if (typeof chat.members === 'object') {
-        // Handle NEW object map format
-        isMember = !!chat.members[currentUser.uid];
-        memberUids = Object.keys(chat.members);
-      }
-    }
-    
-    if(!isMember) {
-      return null;
-    }
-    // --- END FIX ---
-
-    let chatName = chat.name;
-    const isDM = chat.isGroup === false;
-    
-    // If it's a DM, find the other user and get their username
-    if (isDM) {
-      const otherUid = memberUids.find(uid => uid !== currentUser.uid);
-      if (otherUid) {
-        try {
-          const userSnap = await get(ref(db, "users/" + otherUid));
-          if (userSnap.exists()) {
-            chatName = userSnap.val().username || "DM"; 
-          } else {
-            chatName = "Deleted User";
+  const chatPromises = [];
+  userChatsSnap.forEach(chatChild => {
+      const chatId = chatChild.key;
+      const data = chatChild.val(); // Contains name, isGroup, unread, and NEW: lastMessageTime
+      
+      // Fetch the main chat object for members list (needed for DM name lookup and backward compatibility)
+      const chatPromise = get(ref(db, `chats/${chatId}`)).then(chatSnap => {
+          if (!chatSnap.exists()) return null;
+          
+          const chat = chatSnap.val();
+          
+          // --- Robust Membership Check ---
+          let isMember = false;
+          let memberUids = [];
+          if (chat.members) {
+            if (Array.isArray(chat.members)) {
+              isMember = chat.members.includes(currentUser.uid);
+              memberUids = chat.members;
+            } else if (typeof chat.members === 'object') {
+              isMember = !!chat.members[currentUser.uid];
+              memberUids = Object.keys(chat.members);
+            }
           }
-        } catch (e) {
-          chatName = chat.name || "DM"; 
-        }
-      }
-    }
+          if(!isMember) return null;
+          // --- End Membership Check ---
+          
+          let chatName = data.name;
+          const isDM = data.isGroup === false;
+          
+          // If it's a DM, find the other user and get their username from the /users node
+          // We rely on the name stored in /userChats (data.name) unless it's a very old entry,
+          // but we still ensure we have the correct UID to fetch the name if needed.
+          if (isDM && chatName === "DM") { // Only lookup if the name hasn't been set properly
+             const otherUid = memberUids.find(uid => uid !== currentUser.uid);
+             if (otherUid) {
+               chatName = chatMembers[otherUid] || "DM";
+             }
+          }
 
-    return { id, name: chatName };
+          return { 
+              id: chatId, 
+              name: chatName, 
+              lastTime: data.lastMessageTime || 0, // Use 0 if no time exists (for sorting new chats)
+              unread: data.unread
+          };
+      });
+      chatPromises.push(chatPromise);
   });
 
-  const chatItems = await Promise.all(chatPromises);
+  const chatItems = (await Promise.all(chatPromises)).filter(item => item !== null);
 
-  // Now render them
+  // 2. Sort the chats by lastMessageTime (newest first)
+  chatItems.sort((a, b) => b.lastTime - a.lastTime);
+
+  // 3. Now render them
   chatItems.forEach(item => {
-    if (!item) return; 
-    
     const div = document.createElement("div");
     div.className = "chatItem";
     div.dataset.id = item.id;
     div.textContent = item.name; 
+    if(item.unread) div.classList.add("unread"); 
     div.onclick = () => openChat(item.id, item.name); 
     chatList.append(div);
   });
 }
 
-// --- TYPING INDICATOR HANDLERS (NEW) ---
+// --- TYPING INDICATOR HANDLERS ---
 function startTyping(){
     if(!currentChatId || !currentUser) return;
-    
-    // 1. Clear any existing timer
     if(typingTimer) clearTimeout(typingTimer);
 
     typingStatusRef = ref(db, "typing/" + currentChatId + "/" + currentUser.uid);
-
-    // 2. Set the typing status (just a timestamp)
     set(typingStatusRef, Date.now()).catch(()=>{});
-
-    // 3. Set a new timer to clear the status after 2 seconds
     typingTimer = setTimeout(stopTyping, 2000);
 }
 
@@ -452,13 +447,12 @@ function stopTyping(){
 
 // --- OPEN CHAT (WITH TYPING LISTENER) ---
 async function openChat(id,name){
-  // Stop typing in case we were in another chat
   stopTyping(); 
   
   currentChatId=id;
   document.getElementById("chatName").textContent=name;
   messagesDiv.innerHTML="";
-  typingIndicator.textContent = ""; // Clear indicator on opening
+  typingIndicator.textContent = ""; 
   chatMembers = {}; 
   show(chatScreen);
 
@@ -470,7 +464,7 @@ async function openChat(id,name){
   const chat=chatSnap.val();
   currentChatIsGroup = chat.isGroup || false;
 
-  // load member usernames by iterating over the members list/map
+  // load member usernames
   if(chat.members){
     const memberUids = Array.isArray(chat.members) ? chat.members : Object.keys(chat.members);
 
@@ -484,7 +478,7 @@ async function openChat(id,name){
     }
   }
   
-  // --- NEW: Typing Indicator Listener ---
+  // --- Typing Indicator Listener ---
   const typingRef = ref(db, "typing/" + id);
   onValue(typingRef, (snapshot) => {
       if(!snapshot.exists()) {
@@ -499,7 +493,6 @@ async function openChat(id,name){
           const uid = child.key;
           const timestamp = child.val();
           
-          // Only show users who are not us and who have typed recently (within 2 seconds)
           if(uid !== currentUser.uid && (now - timestamp) < 2000) {
               const uname = chatMembers[uid] || "Someone";
               typingUsers.push(uname);
@@ -518,7 +511,6 @@ async function openChat(id,name){
           typingIndicator.textContent = "";
       }
   });
-  // --- END NEW: Typing Indicator Listener ---
 
 
   // mark messages as read and set lastRead
@@ -580,7 +572,6 @@ function renderMessage(m){
     if (!div.startX) return;
     const diff = e.touches[0].clientX - div.startX;
     
-    // Check for a minimum horizontal drag distance
     if (diff > 70) {
       div.isDragging = true;
     }
@@ -594,7 +585,6 @@ function renderMessage(m){
     div.startX = null;
   });
   
-  // Also allow a quick click/tap to initiate a reply
   div.addEventListener("click", () => {
       if (!div.isDragging) showReplyBar(m.text);
   });
@@ -612,23 +602,53 @@ cancelReplyBtn.onclick=()=>{
   replyBar.style.display="none";
 };
 
-// --- NEW: Input Listener for Typing Status ---
 messageInput.onkeydown = startTyping;
 
+// --- SEND BUTTON (UPDATED TO WRITE lastMessageTime) ---
 document.getElementById("sendBtn").onclick=async()=>{
   const text=messageInput.value.trim();
   if(!text||!currentChatId) return;
-  // Stop typing immediately when a message is sent
+  
   stopTyping();
   
-  await push(ref(db,"chats/"+currentChatId+"/messages"),{sender:currentUser.uid,text,replyTo,time:Date.now()});
+  const messageTime = Date.now(); // Get time before writing
+  
+  await push(ref(db,"chats/"+currentChatId+"/messages"),{
+    sender:currentUser.uid,
+    text,
+    replyTo,
+    time: messageTime // Use the stored time
+  });
+  
+  // --- NEW: Update lastMessageTime for ALL chat members ---
+  const chatSnap = await get(ref(db, "chats/" + currentChatId));
+  const chat = chatSnap.val();
+  let memberUids = [];
+  if (chat.members) {
+    memberUids = Array.isArray(chat.members) ? chat.members : Object.keys(chat.members);
+  }
+
+  const userChatUpdates = {};
+  memberUids.forEach(uid => {
+    // Note: The 'unread' flag should only be true for OTHERS, not the sender.
+    if (uid !== currentUser.uid) {
+      userChatUpdates[`/userChats/${uid}/${currentChatId}/unread`] = true;
+    }
+    userChatUpdates[`/userChats/${uid}/${currentChatId}/lastMessageTime`] = messageTime;
+  });
+
+  await update(ref(db), userChatUpdates);
+  // --- END NEW UPDATE ---
+  
   messageInput.value="";
   replyTo=null;
   replyBar.style.display="none";
+  
+  // Relaod the list instantly to see the chat move to the top
+  loadChats(); 
 };
 
 document.getElementById("backBtn").onclick=()=>{
-  // Stop typing when leaving the chat
   stopTyping();
   
   currentChatId=null;
@@ -638,7 +658,6 @@ document.getElementById("backBtn").onclick=()=>{
 };
 
 document.getElementById("logoutBtn").onclick=async()=>{
-  // Clean up any active typing status
   if(currentChatId) stopTyping();
   
   await signOut(auth);
@@ -678,7 +697,6 @@ document.getElementById("groupBtn").onclick=async()=>{
 
   const memberIds=[currentUser.uid];
   
-  // Look up each user using the updated helper
   for (const uname of usernames) {
     const user = await findUserByUsername(uname);
     if (user) {
@@ -692,7 +710,6 @@ document.getElementById("groupBtn").onclick=async()=>{
   
   if (memberIds.length < 2) return alert("Could not find any other valid users to add.");
 
-  // Convert the memberIds array to the required object map
   const newMembersMap = memberIds.reduce((map, uid) => {
       map[uid] = true;
       return map;
@@ -705,23 +722,26 @@ document.getElementById("groupBtn").onclick=async()=>{
     members:newMembersMap
   });
   
-  // Store chat metadata for all members
   const userChatUpdates = {};
+  const creationTime = Date.now(); // Set the initial time
   memberIds.forEach(uid => {
-    userChatUpdates[`/userChats/${uid}/${refNew.key}`] = { name: name, isGroup: true };
+    userChatUpdates[`/userChats/${uid}/${refNew.key}`] = { 
+        name: name, 
+        isGroup: true,
+        lastMessageTime: creationTime // Initial sort key
+    };
   });
   await update(ref(db), userChatUpdates);
 
   loadChats();
 };
 
-// --- DM BUTTON (SIMPLIFIED) ---
+// --- DM BUTTON (UPDATED TO WRITE lastMessageTime) ---
 document.getElementById("dmBtn").onclick=async()=>{
   const uname = prompt("Username to DM:");
   if (!uname) return;
 
   try {
-    // 1. Look up the UID from the 'users' path using the FIXED helper
     const otherUser = await findUserByUsername(uname);
     if (!otherUser) {
       return alert("User not found.");
@@ -732,9 +752,9 @@ document.getElementById("dmBtn").onclick=async()=>{
       return alert("You can't DM yourself!");
     }
 
-    // 2. Create the chat using Object Map for members
     const refNew = push(ref(db, "chats"));
     const newMembersMap = { [currentUser.uid]: true, [otherUid]: true };
+    const creationTime = Date.now(); // Set the initial time
     
     await set(refNew, {
       name: uname, 
@@ -742,15 +762,22 @@ document.getElementById("dmBtn").onclick=async()=>{
       members: newMembersMap
     });
     
-    // 3. Store chat metadata for both members
     const currentUserProfileSnap = await get(ref(db, "users/" + currentUser.uid));
     const currentUsername = currentUserProfileSnap.val() ? currentUserProfileSnap.val().username : "You";
 
     await update(ref(db), {
       // User's side shows the *other* user's name
-      [`/userChats/${currentUser.uid}/${refNew.key}`]: { name: uname, isGroup: false }, 
+      [`/userChats/${currentUser.uid}/${refNew.key}`]: { 
+          name: uname, 
+          isGroup: false,
+          lastMessageTime: creationTime // Initial sort key
+      }, 
       // Other user's side shows *your* username
-      [`/userChats/${otherUid}/${refNew.key}`]: { name: currentUsername, isGroup: false } 
+      [`/userChats/${otherUid}/${refNew.key}`]: { 
+          name: currentUsername, 
+          isGroup: false,
+          lastMessageTime: creationTime // Initial sort key
+      } 
     });
 
     loadChats();
@@ -760,7 +787,7 @@ document.getElementById("dmBtn").onclick=async()=>{
   }
 };
 
-// --- LISTEN FOR UNREAD (MEMBERSHIP CHECK FIXES APPLIED) ---
+// --- LISTEN FOR UNREAD (Membership and Time fixes applied) ---
 function listenForUnread(){
   // watch userChats to update UI unread markers
   const userChatsRef = ref(db,"userChats/"+currentUser.uid);
@@ -784,7 +811,6 @@ function listenForUnread(){
       const chatId = chatSnap.key;
       const chat = chatSnap.val();
       
-      // Check membership (handles both Array and Object Map)
       let isMember = false;
       if (chat.members) {
         if (Array.isArray(chat.members)) {
@@ -803,19 +829,23 @@ function listenForUnread(){
       onChildAdded(msgRef, msgSnap => {
         const m = msgSnap.val();
 
-        // ignore our own messages
-        if(!m || !m.sender || m.sender === currentUser.uid) return;
+        if(!m || !m.sender || m.sender === currentUser.uid) {
+           // If we're the sender, we already updated the lastMessageTime in sendBtn.onclick.
+           return;
+        }
+
+        // --- NEW: Update lastMessageTime for the RECEIVER ---
+        update(ref(db, `/userChats/${currentUser.uid}/${chatId}`), {
+             lastMessageTime: m.time // Use the message's time
+        }).catch(()=>{});
 
         // check user's lastRead for this chat
         get(ref(db,"userChats/"+currentUser.uid+"/"+chatId)).then(userChatSnap=>{
           const data = userChatSnap.val() || {};
           const lastRead = data.lastRead || 0;
 
-          // only mark unread and notify if message is newer than lastRead and chat not open
           if(m.time > lastRead && currentChatId !== chatId){
             update(ref(db,"userChats/"+currentUser.uid+"/"+chatId),{ unread:true });
-
-            // show push notification
             showNotification(chat.name || "New message", m.text, chatId);
           }
         }).catch(()=>{});
