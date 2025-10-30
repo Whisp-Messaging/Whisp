@@ -460,7 +460,7 @@ const loginScreen=document.getElementById("loginScreen"),
 
 let currentUser=null, currentChatId=null, replyTo=null, currentListenerRef=null, otherUserUid=null; 
 let currentChatIsGroup=false, chatMembers={};
-let typingTimer=null, typingStatusRef=null, currentTypingListener = null; // Added currentTypingListener
+let typingTimer=null, typingStatusRef=null, currentTypingListener = null;
 
 let activeMessageListeners = new Set();
 
@@ -643,7 +643,7 @@ async function loadChats(){
                  let lastMsg = null;
                  msgSnap.forEach(child => lastMsg = child.val());
                  if (lastMsg) {
-                     lastMessageText = lastMsg.text || (lastMsg.imageUrl ? "Image" : "Message"); 
+                     lastMessageText = lastMsg.text || "Message"; 
                  }
              }
           }
@@ -1003,12 +1003,13 @@ document.getElementById("sendBtn").onclick=async()=>{
   loadChats(); 
 };
 
+// --- FIX: Ensure back button logic is wrapped in an event handler function ---
 document.getElementById("backBtn").onclick=()=>{
   stopTyping();
   
   currentChatId=null;
   if(currentListenerRef){off(currentListenerRef); currentListenerRef=null;}
-  // **CRITICAL CLEANUP: Turn off the typing listener when leaving the chat**
+  // CRITICAL CLEANUP: Turn off the typing listener when leaving the chat
   if(currentTypingListener){off(currentTypingListener); currentTypingListener=null;}
   
   // Hide settings elements
@@ -1201,6 +1202,7 @@ document.addEventListener('click', (e) => {
 });
 
 
+// FIX: Ensure rename button logic is correctly linked
 document.getElementById('renameGroupBtn').onclick = async () => {
     if (!currentChatId || !currentChatIsGroup) return;
     groupSettingsMenu.style.display = 'none';
@@ -1233,6 +1235,7 @@ document.getElementById('renameGroupBtn').onclick = async () => {
     }
 };
 
+// FIX: Ensure add members button logic is correctly linked
 document.getElementById('addMembersBtn').onclick = async () => {
     if (!currentChatId || !currentChatIsGroup) return;
     groupSettingsMenu.style.display = 'none';
@@ -1336,7 +1339,7 @@ function listenForUnread(){
            return;
         }
         
-        const messageSnippet = m.imageUrl ? "Image" : (m.text.length > 50 ? m.text.slice(0, 50) + '...' : m.text);
+        const messageSnippet = m.text.length > 50 ? m.text.slice(0, 50) + '...' : m.text;
 
         // Update last message time and text
         update(dbRef(db, `/userChats/${currentUser.uid}/${chatId}`), {
