@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -445,9 +444,9 @@ async function loadChats(){
           
           let chatName = data.name;
           const isDM = data.isGroup === false;
-          let updateNeeded = false; // Flag to check if we need to write back to DB
+          let updateNeeded = false; 
 
-          // --- FIX: Proactively Correct DM chat name if mismatched ---
+          // --- CRITICAL FIX: OVERRIDE DM NAME ---
           if (isDM) { 
               const otherUid = memberUids.find(uid => uid !== currentUser.uid);
               if (otherUid) {
@@ -455,9 +454,12 @@ async function loadChats(){
                   if (userSnap.exists()) {
                       const correctName = userSnap.val().username || "DM User"; 
 
-                      if (chatName !== correctName) {
-                          chatName = correctName; // Use the correct name for display
-                          updateNeeded = true;    // Mark for DB correction
+                      // Force the display name to be the current, correct name
+                      chatName = correctName; 
+                      
+                      // Check if DB correction is needed
+                      if (data.name !== correctName) {
+                          updateNeeded = true;    
                       }
                       chatMembers[otherUid] = chatName; // Update local cache
                   } else {
@@ -466,7 +468,7 @@ async function loadChats(){
                   }
               }
           }
-          // --- END FIX ---
+          // --- END CRITICAL FIX ---
 
 
           return { 
@@ -474,7 +476,7 @@ async function loadChats(){
               name: chatName, 
               lastTime: data.lastMessageTime || 0,
               unread: data.unread,
-              updateNeeded: updateNeeded // Pass flag along
+              updateNeeded: updateNeeded
           };
       });
       chatPromises.push(chatPromise);
@@ -485,7 +487,7 @@ async function loadChats(){
   // 2. Sort the chats by lastMessageTime (newest first)
   chatItems.sort((a, b) => b.lastTime - a.lastTime);
 
-  // 3. Now render them and perform necessary database corrections
+  // 3. Now render them and prepare database corrections
   const correctionPromises = [];
   chatItems.forEach(item => {
     const div = document.createElement("div");
@@ -506,7 +508,7 @@ async function loadChats(){
     }
   });
   
-  // Wait for all database corrections to finish (optional, but good practice)
+  // Wait for all database corrections to finish (optional)
   await Promise.all(correctionPromises).catch(e => console.error("Error during chat name correction:", e));
 }
 
