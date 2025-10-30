@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -411,7 +412,7 @@ onAuthStateChanged(auth, async user => {
   }
 });
 
-// --- LOAD CHATS (SORTED AND NAME FIX APPLIED) ---
+// --- LOAD CHATS (SORTED AND NAME CORRECTION APPLIED) ---
 async function loadChats(){
   chatList.innerHTML="";
   
@@ -436,7 +437,7 @@ async function loadChats(){
               isMember = chat.members.includes(currentUser.uid);
               memberUids = chat.members;
             } else if (typeof chat.members === 'object') {
-              isMember = !!chat.members[currentUser.uid];
+              isMember = Object.keys(chat.members).includes(currentUser.uid);
               memberUids = Object.keys(chat.members);
             }
           }
@@ -444,18 +445,24 @@ async function loadChats(){
           
           let chatName = data.name;
           const isDM = data.isGroup === false;
+          let updateNeeded = false; // Flag to check if we need to write back to DB
 
-          // --- FIX: Ensure DM chat name is current username ---
+          // --- FIX: Proactively Correct DM chat name if mismatched ---
           if (isDM) { 
               const otherUid = memberUids.find(uid => uid !== currentUser.uid);
               if (otherUid) {
                   const userSnap = await get(ref(db, "users/" + otherUid));
                   if (userSnap.exists()) {
-                      // **THIS OVERRIDES POTENTIALLY OLD/CORRUPT NAME IN /userChats/**
-                      chatName = userSnap.val().username || "DM User"; 
+                      const correctName = userSnap.val().username || "DM User"; 
+
+                      if (chatName !== correctName) {
+                          chatName = correctName; // Use the correct name for display
+                          updateNeeded = true;    // Mark for DB correction
+                      }
                       chatMembers[otherUid] = chatName; // Update local cache
                   } else {
                       chatName = "Deleted User";
+                      if (data.name !== chatName) updateNeeded = true;
                   }
               }
           }
@@ -466,7 +473,8 @@ async function loadChats(){
               id: chatId, 
               name: chatName, 
               lastTime: data.lastMessageTime || 0,
-              unread: data.unread
+              unread: data.unread,
+              updateNeeded: updateNeeded // Pass flag along
           };
       });
       chatPromises.push(chatPromise);
@@ -477,7 +485,8 @@ async function loadChats(){
   // 2. Sort the chats by lastMessageTime (newest first)
   chatItems.sort((a, b) => b.lastTime - a.lastTime);
 
-  // 3. Now render them
+  // 3. Now render them and perform necessary database corrections
+  const correctionPromises = [];
   chatItems.forEach(item => {
     const div = document.createElement("div");
     div.className = "chatItem";
@@ -486,7 +495,19 @@ async function loadChats(){
     if(item.unread) div.classList.add("unread"); 
     div.onclick = () => openChat(item.id, item.name); 
     chatList.append(div);
+    
+    // 4. Perform the correction if needed
+    if (item.updateNeeded) {
+        correctionPromises.push(
+            update(ref(db, `/userChats/${currentUser.uid}/${item.id}`), {
+                name: item.name
+            })
+        );
+    }
   });
+  
+  // Wait for all database corrections to finish (optional, but good practice)
+  await Promise.all(correctionPromises).catch(e => console.error("Error during chat name correction:", e));
 }
 
 // --- TYPING INDICATOR HANDLERS ---
@@ -868,7 +889,7 @@ document.getElementById("dmBtn").onclick=async()=>{
     await update(ref(db), {
       // User's side shows the *other* user's name
       [`/userChats/${currentUser.uid}/${refNew.key}`]: { 
-          name: otherUser.username, // Use the actual name found
+          name: otherUser.username, 
           isGroup: false,
           lastMessageTime: creationTime 
       }, 
@@ -914,7 +935,7 @@ function listenForUnread(){
         if (Array.isArray(chat.members)) {
           isMember = chat.members.includes(currentUser.uid);
         } else if (typeof chat.members === 'object') {
-          isMember = !!chat.members[currentUser.uid];
+          isMember = Object.keys(chat.members).includes(currentUser.uid);
         }
       }
 
@@ -924,7 +945,7 @@ function listenForUnread(){
       activeMessageListeners.add(chatId);
 
       const msgRef = ref(db,"chats/"+chatId+"/messages");
-      onChildAdded(msgSnap => {
+      onChildAdded(msgRef, msgSnap => {
         const m = msgSnap.val();
 
         if(!m || !m.sender || m.sender === currentUser.uid) {
@@ -979,7 +1000,5 @@ function showNotification(title, body, tag){
   }
 }
 </script>
-</body>
-</html>
 </body>
 </html>
