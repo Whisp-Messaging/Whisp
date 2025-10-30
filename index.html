@@ -285,9 +285,9 @@ const loginScreen=document.getElementById("loginScreen"),
       cancelReplyBtn=document.getElementById("cancelReply"),
       messageInput=document.getElementById("message"),
       typingIndicator=document.getElementById("typingIndicator"),
-      chatStatus=document.getElementById("chatStatus"); // NEW: Chat Status element
+      chatStatus=document.getElementById("chatStatus"); 
 
-let currentUser=null, currentChatId=null, replyTo=null, currentListenerRef=null, otherUserUid=null; // NEW: otherUserUid
+let currentUser=null, currentChatId=null, replyTo=null, currentListenerRef=null, otherUserUid=null; 
 let currentChatIsGroup=false, chatMembers={};
 let typingTimer=null, typingStatusRef=null; 
 
@@ -295,7 +295,7 @@ let activeMessageListeners = new Set();
 
 const show=(s)=>{[loginScreen,chatListScreen,chatScreen].forEach(e=>e.classList.remove("active"));s.classList.add("active");};
 
-// --- PRESENCE HANDLERS (NEW) ---
+// --- PRESENCE HANDLERS ---
 
 // Utility function to format last seen timestamp
 function formatLastSeen(timestamp) {
@@ -327,7 +327,6 @@ async function goOnline() {
     await set(isOnlineRef, true);
 
     // 2. Set the `onDisconnect` hook (CRUCIAL for last seen)
-    // When the user disconnects, set their status to the current server timestamp
     onDisconnect(isOnlineRef).set(Date.now());
 }
 
@@ -399,12 +398,11 @@ onAuthStateChanged(auth, async user => {
     currentUser=user;
     activeMessageListeners = new Set();
     await loadChats();
-    goOnline(); // Go online when authenticated
+    goOnline(); 
     show(chatListScreen);
     listenForUnread();
   } else {
     currentUser=null;
-    // Note: goOffline is called on logout button click for manual sign out
     activeMessageListeners.forEach(chatId => {
       try { off(ref(db,"chats/"+chatId+"/messages")); } catch(_) {}
     });
@@ -413,7 +411,7 @@ onAuthStateChanged(auth, async user => {
   }
 });
 
-// --- LOAD CHATS (SORTED) ---
+// --- LOAD CHATS (SORTED AND NAME FIX APPLIED) ---
 async function loadChats(){
   chatList.innerHTML="";
   
@@ -426,7 +424,7 @@ async function loadChats(){
       const chatId = chatChild.key;
       const data = chatChild.val(); 
       
-      const chatPromise = get(ref(db, `chats/${chatId}`)).then(chatSnap => {
+      const chatPromise = get(ref(db, `chats/${chatId}`)).then(async chatSnap => {
           if (!chatSnap.exists()) return null;
           
           const chat = chatSnap.val();
@@ -445,6 +443,24 @@ async function loadChats(){
           if(!isMember) return null;
           
           let chatName = data.name;
+          const isDM = data.isGroup === false;
+
+          // --- FIX: Ensure DM chat name is current username ---
+          if (isDM) { 
+              const otherUid = memberUids.find(uid => uid !== currentUser.uid);
+              if (otherUid) {
+                  const userSnap = await get(ref(db, "users/" + otherUid));
+                  if (userSnap.exists()) {
+                      // **THIS OVERRIDES POTENTIALLY OLD/CORRUPT NAME IN /userChats/**
+                      chatName = userSnap.val().username || "DM User"; 
+                      chatMembers[otherUid] = chatName; // Update local cache
+                  } else {
+                      chatName = "Deleted User";
+                  }
+              }
+          }
+          // --- END FIX ---
+
 
           return { 
               id: chatId, 
@@ -498,10 +514,10 @@ async function openChat(id,name){
   document.getElementById("chatName").textContent=name;
   messagesDiv.innerHTML="";
   typingIndicator.textContent = ""; 
-  chatStatus.textContent = ""; // Reset status
+  chatStatus.textContent = ""; 
   chatStatus.classList.remove("online");
   chatMembers = {}; 
-  otherUserUid = null; // Reset other user UID
+  otherUserUid = null; 
 
   show(chatScreen);
 
@@ -532,7 +548,7 @@ async function openChat(id,name){
     }
   }
   
-  // --- NEW: Presence Listener for DM Status ---
+  // --- Presence Listener for DM Status ---
   if (otherUserUid) {
       const presenceRef = ref(db, 'presence/' + otherUserUid);
       onValue(presenceRef, (snapshot) => {
@@ -545,11 +561,9 @@ async function openChat(id,name){
           const status = snapshot.val();
           
           if (status === true) {
-              // User is online
               chatStatus.textContent = "Online";
               chatStatus.classList.add("online");
           } else if (typeof status === 'number') {
-              // User is offline, show last seen timestamp
               chatStatus.textContent = `Last seen ${formatLastSeen(status)}`;
               chatStatus.classList.remove("online");
           } else {
@@ -558,13 +572,11 @@ async function openChat(id,name){
           }
       });
   } else if (!currentChatIsGroup) {
-      // Should only happen if the DM member list is empty/corrupt
       chatStatus.textContent = "User status unavailable";
   } else {
-      // Clear status for groups (we only track DM status simply)
       chatStatus.textContent = "";
   }
-  // --- END NEW: Presence Listener ---
+  // --- End Presence Listener ---
 
 
   // --- Typing Indicator Listener ---
@@ -693,7 +705,7 @@ cancelReplyBtn.onclick=()=>{
 
 messageInput.onkeydown = startTyping;
 
-// --- SEND BUTTON (UPDATED TO WRITE lastMessageTime) ---
+// --- SEND BUTTON ---
 document.getElementById("sendBtn").onclick=async()=>{
   const text=messageInput.value.trim();
   if(!text||!currentChatId) return;
@@ -709,7 +721,7 @@ document.getElementById("sendBtn").onclick=async()=>{
     time: messageTime 
   });
   
-  // --- Update lastMessageTime for ALL chat members ---
+  // Update lastMessageTime for ALL chat members
   const chatSnap = await get(ref(db, "chats/" + currentChatId));
   const chat = chatSnap.val();
   let memberUids = [];
@@ -731,6 +743,7 @@ document.getElementById("sendBtn").onclick=async()=>{
   replyTo=null;
   replyBar.style.display="none";
   
+  // Relaod the list instantly to see the chat move to the top
   loadChats(); 
 };
 
@@ -746,13 +759,13 @@ document.getElementById("backBtn").onclick=()=>{
 document.getElementById("logoutBtn").onclick=async()=>{
   if(currentChatId) stopTyping();
   
-  await goOffline(); // Set last seen time manually on logout
+  await goOffline(); 
   await signOut(auth);
   currentUser=null;
   show(loginScreen);
 };
 
-// --- HELPER FUNCTION TO FIND USER BY USERNAME (simplified search, fixed) ---
+// --- HELPER FUNCTION TO FIND USER BY USERNAME ---
 async function findUserByUsername(username) {
   const usersRef = ref(db, 'users');
   const snap = await get(usersRef);
@@ -774,7 +787,7 @@ async function findUserByUsername(username) {
 }
 
 
-// --- GROUP BUTTON (WRITING lastMessageTime) ---
+// --- GROUP BUTTON ---
 document.getElementById("groupBtn").onclick=async()=>{
   const name=prompt("Group name:");
   if(!name)return;
@@ -823,7 +836,7 @@ document.getElementById("groupBtn").onclick=async()=>{
   loadChats();
 };
 
-// --- DM BUTTON (WRITING lastMessageTime) ---
+// --- DM BUTTON ---
 document.getElementById("dmBtn").onclick=async()=>{
   const uname = prompt("Username to DM:");
   if (!uname) return;
@@ -855,7 +868,7 @@ document.getElementById("dmBtn").onclick=async()=>{
     await update(ref(db), {
       // User's side shows the *other* user's name
       [`/userChats/${currentUser.uid}/${refNew.key}`]: { 
-          name: uname, 
+          name: otherUser.username, // Use the actual name found
           isGroup: false,
           lastMessageTime: creationTime 
       }, 
@@ -911,7 +924,7 @@ function listenForUnread(){
       activeMessageListeners.add(chatId);
 
       const msgRef = ref(db,"chats/"+chatId+"/messages");
-      onChildAdded(msgRef, msgSnap => {
+      onChildAdded(msgSnap => {
         const m = msgSnap.val();
 
         if(!m || !m.sender || m.sender === currentUser.uid) {
@@ -966,5 +979,7 @@ function showNotification(title, body, tag){
   }
 }
 </script>
+</body>
+</html>
 </body>
 </html>
