@@ -1,85 +1,114 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Whisp</title>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
 <style>
-  /* --- SLEEK DARK MODE STYLES --- */
+  /* --- GLOBAL & BASE STYLES --- */
   html, body {
     margin: 0;
     padding: 0;
     height: 100%;
-    background: #121212; /* Dark background */
-    color: #e0e0e0;     /* Light text */
-    font-family: "Segoe UI", Roboto, sans-serif;
+    /* Use a cleaner, slightly softer dark mode palette */
+    background: #1e1e1e; 
+    color: #e0e0e0;     
+    font-family: 'Roboto', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
   main {
     height: 100%;
     display: flex;
     flex-direction: column;
-    background: #1a1a1a; /* Slightly lighter main container */
+    background: #252526; /* Main app background */
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
   }
 
-  .screen { display: none; flex-direction: column; height: 100%; }
-  .screen.active { display: flex; }
-
-  /* Login */
+  .screen { 
+    display: none; 
+    flex-direction: column; 
+    height: 100%; 
+    transition: opacity 0.3s ease;
+  }
+  .screen.active { 
+    display: flex; 
+  }
+  
+  /* --- 1. LOGIN SCREEN --- */
   #loginScreen {
     justify-content: center;
     align-items: center;
-    background: #1a1a1a;
-    color: #e0e0e0;
-    text-align: center;
-    padding: 20px;
+    background: #1e1e1e;
   }
-  #loginScreen h2 { font-size: 2rem; margin-bottom: 20px; color: #008cff; }
+  #loginScreen h2 { 
+    font-size: 2.2rem; 
+    margin-bottom: 25px; 
+    color: #007bff; /* Primary brand color */
+    font-weight: 700;
+  }
   #loginScreen input {
     display: block;
     width: 80%;
-    margin: 12px auto;
-    padding: 12px;
-    border-radius: 8px;
-    border: 1px solid #444;
-    background: #333;
-    color: #fff;
+    max-width: 300px;
+    margin: 15px auto;
+    padding: 15px;
+    border-radius: 10px;
+    border: none;
+    background: #333333;
+    color: #ffffff;
     font-size: 1rem;
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.3);
   }
   #loginBtn {
     background: #007bff;
     color: white;
     border: none;
-    padding: 12px 24px;
-    border-radius: 8px;
+    padding: 12px 30px;
+    border-radius: 10px;
     cursor: pointer;
-    font-weight: 600;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-    margin-top: 10px;
-  }
-
-  /* Chat List */
-  #chatListScreen { background: #1a1a1a; flex: 1; }
-  #chatListHeader {
-    background: #222;
-    color: white;
-    padding: 14px;
-    font-weight: 600;
-    border-bottom: 1px solid #333;
+    font-weight: 500;
     font-size: 1.1rem;
+    transition: background 0.3s, transform 0.1s;
+    margin-top: 20px;
+  }
+  #loginBtn:hover { background: #0056b3; }
+  #loginBtn:active { transform: scale(0.98); }
+
+  /* --- 2. CHAT LIST SCREEN --- */
+  #chatListScreen { background: #252526; flex: 1; }
+  #chatListHeader {
+    background: #1e1e1e;
+    color: white;
+    padding: 16px 20px;
+    font-weight: 700;
+    border-bottom: 1px solid #333333;
+    font-size: 1.3rem;
   }
   #chatList { flex: 1; overflow-y: auto; padding-bottom: 70px; }
   .chatItem {
-    padding: 16px 14px;
-    border-bottom: 1px solid #333;
+    padding: 18px 20px;
+    border-bottom: 1px solid #333333;
     cursor: pointer;
     transition: background 0.2s;
-    font-size: 1.05rem;
+    font-size: 1.1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
   }
-  .chatItem:hover { background: #2c2c2c; }
+  .chatItem:hover { background: #333333; }
   .chatItem.unread {
-    font-weight: 700;
-    background: #2a3a4a; /* Subtle blue for unread */
+    font-weight: 500;
+    background: #2a3a4a; 
+  }
+  .chatItem .lastMessage {
+      font-size: 0.9rem;
+      color: #aaa;
+      max-width: 60%;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
   }
 
   /* Bottom Menu */
@@ -91,124 +120,203 @@
     bottom: 0;
     left: 0;
     width: 100%;
-    background: #222;
-    padding: 10px 0;
-    border-top: 1px solid #333;
+    background: #1e1e1e;
+    padding: 12px 0;
+    border-top: 1px solid #333333;
+    z-index: 10;
   }
   #bottomMenu button {
     background: #007bff;
     color: white;
     border: none;
-    padding: 8px 16px;
+    padding: 10px 18px;
     border-radius: 8px;
-    font-weight: 600;
+    font-weight: 500;
     cursor: pointer;
+    transition: background 0.3s;
   }
+  #bottomMenu button:hover { background: #0056b3; }
 
-  /* Chat */
+  /* --- 3. CHAT SCREEN --- */
   #chatScreen { background: #121212; }
   #chatHeader {
-    background: #222;
+    background: #1e1e1e;
     color: white;
-    padding: 12px;
+    padding: 10px 15px;
     display: flex;
-    justify-content: space-between;
-    align-items: center;
     flex-direction: column; 
+    border-bottom: 1px solid #333333;
   }
-  #chatHeader button { background: none; border: none; color: white; font-size: 1.2rem; cursor: pointer; padding: 0 10px; }
+  #chatHeader button { 
+    background: none; 
+    border: none; 
+    color: white; 
+    font-size: 1.5rem; 
+    cursor: pointer; 
+    padding: 0 10px; 
+    transition: color 0.2s;
+  }
+  #chatHeader button:hover { color: #007bff; }
   
-  #chatHeader div.main-row { width: 100%; display: flex; justify-content: space-between; align-items: center; }
-  #chatNameContainer { display: flex; flex-direction: column; align-items: flex-start; }
-  #chatName { font-size: 1.1rem; font-weight: 600; }
+  #chatHeader div.main-row { 
+    width: 100%; 
+    display: flex; 
+    align-items: center; 
+  }
+  #chatNameContainer { 
+    display: flex; 
+    flex-direction: column; 
+    align-items: flex-start; 
+    flex-grow: 1;
+    margin-left: 10px;
+  }
+  #chatName { 
+    font-size: 1.2rem; 
+    font-weight: 700; 
+  }
   
   /* Status Styles */
-  #chatStatus { font-size: 0.8rem; color: #aaa; height: 16px; }
-  #chatStatus.online { color: #00ff8c; } /* Green for online */
+  #chatStatus { 
+    font-size: 0.75rem; 
+    color: #999; 
+    height: 15px; 
+    font-weight: 400;
+  }
+  #chatStatus.online { 
+    color: #00ff8c; /* Vibrant green for online */
+    font-weight: 500;
+  } 
 
   /* Typing Indicator Style */
   #typingIndicator { 
     font-size: 0.8rem; 
-    color: #00c7ff; 
+    color: #00aaff; 
     font-style: italic;
     height: 18px; 
     text-align: left;
-    padding-left: 20px;
+    padding: 5px 0 0 45px; /* Aligned with chat name */
     width: 100%;
     overflow: hidden;
   }
   
-  #messages { flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; }
+  #messages { 
+    flex: 1; 
+    overflow-y: auto; 
+    padding: 10px 15px; 
+    display: flex; 
+    flex-direction: column; 
+    gap: 5px;
+  }
   .msg {
-    max-width: 80%;
-    margin-bottom: 10px;
-    padding: 10px 14px;
-    border-radius: 16px;
+    max-width: 85%;
+    margin-bottom: 8px;
+    padding: 12px 16px;
+    border-radius: 20px;
     position: relative;
     word-wrap: break-word;
-    line-height: 1.4;
+    line-height: 1.5;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.2);
   }
   .me {
     align-self: flex-end;
-    background: #0056b3; 
+    background: #007bff; /* Primary blue for me */
     color: white;
     border-bottom-right-radius: 4px;
   }
   .them {
     align-self: flex-start;
-    background: #333; 
+    background: #3a3a3a; /* Soft gray for them */
     color: #e0e0e0;
     border-bottom-left-radius: 4px;
   }
-  .timestamp { font-size: 0.75rem; color: #aaa; text-align: right; margin-top: 4px; }
-  .sender { font-size: 0.8rem; color: #0099ff; font-weight: 600; margin-bottom: 3px; }
+  .timestamp { 
+    font-size: 0.7rem; 
+    color: rgba(255,255,255,0.6); 
+    text-align: right; 
+    margin-top: 5px; 
+    display: block;
+  }
+  .them .timestamp {
+    color: rgba(224,224,224,0.6);
+  }
+  .sender { 
+    font-size: 0.85rem; 
+    color: #00c7ff; 
+    font-weight: 600; 
+    margin-bottom: 4px; 
+  }
+  .msg a { color: inherit; text-decoration: underline; }
+
 
   /* Reply Bar */
   #replyBar {
     display: none;
     background: #2a2a2a;
-    padding: 8px 12px;
+    padding: 10px 15px;
     border-left: 4px solid #007bff;
-    font-size: 0.9rem;
+    font-size: 0.95rem;
     align-items: center;
     display: flex;
     justify-content: space-between;
   }
   #replyText { flex: 1; color: #ccc; }
-  #cancelReply { background: none; border: none; color: #007bff; font-weight: bold; cursor: pointer; margin-left: 10px; }
+  #cancelReply { 
+    background: none; 
+    border: none; 
+    color: #007bff; 
+    font-weight: bold; 
+    cursor: pointer; 
+    margin-left: 10px; 
+    font-size: 1.2rem;
+  }
 
   #inputBar {
     display: flex;
     align-items: center;
-    background: #222;
-    padding: 8px;
-    border-top: 1px solid #333;
+    background: #1e1e1e;
+    padding: 10px 15px;
+    border-top: 1px solid #333333;
   }
   #message {
     flex: 1;
-    padding: 10px 16px;
-    border-radius: 20px;
-    border: 1px solid #555;
-    background: #333;
+    padding: 12px 18px;
+    border-radius: 25px;
+    border: none;
+    background: #3a3a3a;
     color: #fff;
     outline: none;
     font-size: 1rem;
+    resize: none;
+    max-height: 100px; /* Prevent oversized input */
   }
   #sendBtn {
     background: #007bff;
     color: white;
     border: none;
     border-radius: 50%;
-    width: 42px;
-    height: 42px;
-    margin-left: 8px;
-    font-size: 1.2rem;
+    width: 48px;
+    height: 48px;
+    margin-left: 10px;
+    font-size: 1.5rem;
     cursor: pointer;
+    transition: background 0.3s, transform 0.1s;
   }
+  #sendBtn:hover { background: #0056b3; }
+  #sendBtn:active { transform: scale(0.95); }
 
+  /* Desktop Optimization */
   @media (min-width: 700px) {
-    main { max-width: 600px; margin: auto; border-radius: 10px; overflow: hidden; }
-    #bottomMenu { position: static; }
+    main { 
+        max-width: 600px; 
+        height: 90vh;
+        margin: 5vh auto; 
+        border-radius: 12px; 
+        overflow: hidden; 
+    }
+    #bottomMenu { 
+        position: static; 
+        padding: 10px;
+    }
   }
 </style>
 </head>
@@ -228,8 +336,8 @@
     <div id="chatListHeader">Whisp Chats</div>
     <div id="chatList"></div>
     <div id="bottomMenu">
-      <button id="dmBtn">DM</button>
-      <button id="groupBtn">Group</button>
+      <button id="dmBtn">New DM</button>
+      <button id="groupBtn">New Group</button>
       <button id="logoutBtn">Logout</button>
     </div>
   </section>
@@ -251,7 +359,7 @@
       <button id="cancelReply">✖</button>
     </div>
     <div id="inputBar">
-      <input id="message" placeholder="Type a message..." />
+      <textarea id="message" placeholder="Type a message..."></textarea>
       <button id="sendBtn">➤</button>
     </div>
   </section>
@@ -260,7 +368,7 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
-import { getDatabase, ref, set, push, get, onChildAdded, onValue, off, update, remove, onDisconnect } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js";
+import { getDatabase, ref, set, push, get, onChildAdded, onValue, off, update, remove, onDisconnect, query, limitToLast } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCEdtncZpDgOSnULIjopee7GKh9h9hveKk",
@@ -305,18 +413,13 @@ function formatLastSeen(timestamp) {
     const now = new Date();
     const diff = now.getTime() - date.getTime();
     
-    // Less than a minute ago
     if (diff < 60000) return "just now";
-    // Less than an hour ago
     if (diff < 3600000) return `Last seen ${Math.floor(diff / 60000)}m ago`;
-    // Today
     if (date.toDateString() === now.toDateString()) return `Last seen today at ${date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
-    // Yesterday
     const yesterday = new Date(now);
     yesterday.setDate(now.getDate() - 1);
     if (date.toDateString() === yesterday.toDateString()) return `Last seen yesterday at ${date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
     
-    // Full date
     return `Last seen ${date.toLocaleDateString()} at ${date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
 }
 
@@ -324,10 +427,7 @@ async function goOnline() {
     if (!currentUser) return;
     const isOnlineRef = ref(db, 'presence/' + currentUser.uid);
 
-    // 1. Write the current user's online status
     await set(isOnlineRef, true);
-
-    // 2. Set the `onDisconnect` hook (CRUCIAL for last seen)
     onDisconnect(isOnlineRef).set(Date.now());
 }
 
@@ -335,14 +435,11 @@ async function goOffline() {
     if (!currentUser) return;
     const isOnlineRef = ref(db, 'presence/' + currentUser.uid);
 
-    // 1. Cancel the `onDisconnect` hook if we're manually signing out
     onDisconnect(isOnlineRef).cancel();
-
-    // 2. Manually write the `lastSeen` timestamp
     await set(isOnlineRef, Date.now());
 }
 
-// --- LOGIN HANDLER (WITH USERNAME UNIQUENESS CHECK) ---
+// --- LOGIN HANDLER ---
 document.getElementById("loginBtn").onclick = async () => {
   const emailVal = document.getElementById("email").value.trim();
   const passwordVal = document.getElementById("password").value.trim();
@@ -352,11 +449,11 @@ document.getElementById("loginBtn").onclick = async () => {
   try {
     let cred;
     try {
-      // 1. Attempt login first (Standard flow)
+      // 1. Attempt login 
       cred = await signInWithEmailAndPassword(auth, emailVal, passwordVal);
       return; 
     } catch (e) {
-      // 2. If login fails, assume registration attempt
+      // 2. If login fails, attempt registration
       if(!usernameVal) {
         return alert("Login failed. If you are registering, please provide a username.");
       }
@@ -378,7 +475,7 @@ document.getElementById("loginBtn").onclick = async () => {
       }
       // --- END UNIQUENESS CHECK ---
       
-      // 3. If uniqueness check passes, proceed with creating user
+      // 3. Create user
       cred = await createUserWithEmailAndPassword(auth, emailVal, passwordVal);
       
       const uid = cred.user.uid;
@@ -412,11 +509,10 @@ onAuthStateChanged(auth, async user => {
   }
 });
 
-// --- LOAD CHATS (SORTED AND NAME CORRECTION APPLIED) ---
+// --- LOAD CHATS (WITH DM NAME CORRECTION AND LAST MESSAGE SNIPPET) ---
 async function loadChats(){
   chatList.innerHTML="";
   
-  // 1. Fetch chat metadata from the user's /userChats node
   const userChatsSnap = await get(ref(db, `userChats/${currentUser.uid}`));
   if(!userChatsSnap.exists()) return;
 
@@ -433,7 +529,6 @@ async function loadChats(){
           let isMember = false;
           let memberUids = [];
           
-          // --- ROBUST MEMBER UID EXTRACTION ---
           if (chat.members) {
             if (Array.isArray(chat.members)) {
               memberUids = chat.members;
@@ -442,71 +537,84 @@ async function loadChats(){
             }
             isMember = memberUids.includes(currentUser.uid);
           }
-          // --- END ROBUST EXTRACTION ---
 
           if(!isMember) return null;
           
-          let chatName = data.name; // This is the potentially old/incorrect name
+          let chatName = data.name; 
+          let isDM = data.isGroup === false;
           
-          // The DM check is now more robust: check userChats metadata OR check if it's a 2-person chat
-          const isDM = data.isGroup === false || (memberUids.length === 2 && chat.isGroup !== true);
+          if (!isDM && memberUids.length === 2 && chat.isGroup !== true) {
+              isDM = true;
+          }
           let updateNeeded = false; 
 
-          // --- CRITICAL FIX: OVERRIDE DM NAME ---
-          if (isDM) { 
-              // Find the one member who is not the current user
-              const otherUid = memberUids.find(uid => uid !== currentUser.uid);
-              
-              if (otherUid) {
-                  const userSnap = await get(ref(db, "users/" + otherUid));
-                  if (userSnap.exists()) {
-                      const correctName = userSnap.val().username || "DM User"; 
+          // --- CRITICAL FIX: OVERRIDE DM NAME (Uses stored otherUid first) ---
+          let finalOtherUid = data.otherUid;
+          if (!finalOtherUid && isDM) {
+              finalOtherUid = memberUids.find(uid => uid !== currentUser.uid);
+          }
 
-                      // Force the display name to be the current, correct name
-                      chatName = correctName; 
-                      
-                      // Check if DB correction is needed (if the stored name is old, incorrect, or blank)
-                      if (data.name !== correctName || !data.name) { 
-                          updateNeeded = true;    
-                      }
-                      chatMembers[otherUid] = chatName; // Update local cache
-                  } else {
-                      // Handle if the other user was deleted or the reference is bad
-                      chatName = "Deleted User";
-                      if (data.name !== chatName || !data.name) updateNeeded = true;
+          if (isDM && finalOtherUid) { 
+              const userSnap = await get(ref(db, "users/" + finalOtherUid));
+              if (userSnap.exists()) {
+                  const correctName = userSnap.val().username || "DM User"; 
+                  chatName = correctName; 
+                  
+                  if (data.name !== correctName || !data.name || !data.otherUid) { 
+                      updateNeeded = true;    
                   }
+                  chatMembers[finalOtherUid] = chatName; 
               } else {
-                  // If we can't find an otherUid, it's an error state for a DM (e.g., deleted self from chat)
-                  chatName = "DM Setup Error";
+                  chatName = "Deleted User";
+                  if (data.name !== chatName || !data.name) updateNeeded = true;
               }
+          } else if (isDM && !finalOtherUid) {
+              chatName = "DM Setup Error";
           }
           // --- END CRITICAL FIX ---
-
+          
+          // --- Get Last Message Snippet ---
+          let lastMessageText = data.lastMessageText || "No messages yet";
+          if (!data.lastMessageText) {
+             const messagesQuery = query(ref(db, `chats/${chatId}/messages`), limitToLast(1));
+             const msgSnap = await get(messagesQuery);
+             if (msgSnap.exists()) {
+                 let lastMsg = null;
+                 msgSnap.forEach(child => lastMsg = child.val());
+                 if (lastMsg) {
+                     lastMessageText = lastMsg.text;
+                     // We would update userChats here if we wanted to permanently store it
+                 }
+             }
+          }
 
           return { 
               id: chatId, 
               name: chatName, 
               lastTime: data.lastMessageTime || 0,
               unread: data.unread,
-              updateNeeded: updateNeeded
+              updateNeeded: updateNeeded,
+              lastMessageText: lastMessageText
           };
       });
       chatPromises.push(chatPromise);
   });
 
   const chatItems = (await Promise.all(chatPromises)).filter(item => item !== null);
-
-  // 2. Sort the chats by lastMessageTime (newest first)
   chatItems.sort((a, b) => b.lastTime - a.lastTime);
 
-  // 3. Now render them and prepare database corrections
   const correctionPromises = [];
   chatItems.forEach(item => {
     const div = document.createElement("div");
     div.className = "chatItem";
     div.dataset.id = item.id;
-    // CRITICAL: Display the corrected name
-    div.textContent = item.name; 
+    
+    div.innerHTML = `
+        <div>
+            ${item.name}
+            <div class="lastMessage">${item.lastMessageText}</div>
+        </div>
+    `;
     
     if(item.unread) div.classList.add("unread"); 
     div.onclick = () => openChat(item.id, item.name); 
@@ -514,15 +622,14 @@ async function loadChats(){
     
     // 4. Perform the correction if needed
     if (item.updateNeeded) {
+        const updateData = { name: item.name };
+        if (item.id.otherUid) updateData.otherUid = item.id.otherUid; // Only set if available
         correctionPromises.push(
-            update(ref(db, `/userChats/${currentUser.uid}/${item.id}`), {
-                name: item.name
-            })
+            update(ref(db, `/userChats/${currentUser.uid}/${item.id}`), updateData)
         );
     }
   });
   
-  // Wait for all database corrections to finish (optional)
   await Promise.all(correctionPromises).catch(e => console.error("Error during chat name correction:", e));
 }
 
@@ -548,7 +655,6 @@ async function openChat(id,name){
   stopTyping(); 
   
   currentChatId=id;
-  // CRITICAL: Ensure the header name is set
   document.getElementById("chatName").textContent=name;
   messagesDiv.innerHTML="";
   typingIndicator.textContent = ""; 
@@ -567,9 +673,21 @@ async function openChat(id,name){
   const chat=chatSnap.val();
   currentChatIsGroup = chat.isGroup || false;
 
+  // Determine otherUserUid from userChats data (more reliable)
+  const userChatSnap = await get(ref(db, `userChats/${currentUser.uid}/${id}`));
+  const userChatData = userChatSnap.val();
+  if (userChatData && userChatData.otherUid) {
+      otherUserUid = userChatData.otherUid;
+  }
+  
   // load member usernames
   if(chat.members){
     const memberUids = Array.isArray(chat.members) ? chat.members : Object.keys(chat.members);
+    
+    // Fallback if otherUid wasn't stored in userChats (old chats)
+    if (!otherUserUid && !currentChatIsGroup && memberUids.length === 2) {
+        otherUserUid = memberUids.find(uid => uid !== currentUser.uid);
+    }
 
     for(const uid of memberUids){
       try {
@@ -577,11 +695,6 @@ async function openChat(id,name){
         if(uSnap.exists()) chatMembers[uid] = uSnap.val().username || "Unknown";
       } catch(e) {
         chatMembers[uid] = "Unknown";
-      }
-      
-      // Determine the *single* other user for DM status tracking
-      if(!currentChatIsGroup && uid !== currentUser.uid) {
-          otherUserUid = uid;
       }
     }
   }
@@ -700,32 +813,38 @@ function renderMessage(m){
   messagesDiv.scrollTop=messagesDiv.scrollHeight;
 
   // --- SWIPE TO REPLY LOGIC ---
+  let startX = 0;
+  let isDragging = false;
+
   div.addEventListener("touchstart", e => {
     if (e.touches.length === 1) {
-      div.startX = e.touches[0].clientX;
-      div.isDragging = false;
+      startX = e.touches[0].clientX;
+      isDragging = false;
     }
   });
   
   div.addEventListener("touchmove", e => {
-    if (!div.startX) return;
-    const diff = e.touches[0].clientX - div.startX;
+    if (!startX) return;
+    const diff = e.touches[0].clientX - startX;
     
     if (diff > 70) {
-      div.isDragging = true;
+      isDragging = true;
     }
   });
 
   div.addEventListener("touchend", () => {
-    if (div.isDragging) {
+    if (isDragging) {
       showReplyBar(m.text);
-      div.isDragging = false;
+      isDragging = false;
     }
-    div.startX = null;
+    startX = 0;
   });
   
-  div.addEventListener("click", () => {
-      if (!div.isDragging) showReplyBar(m.text);
+  div.addEventListener("click", (e) => {
+      // Prevent reply if clicking a link
+      if (e.target.tagName !== 'A') {
+          showReplyBar(m.text);
+      }
   });
   // --- END SWIPE TO REPLY LOGIC ---
 }
@@ -741,7 +860,9 @@ cancelReplyBtn.onclick=()=>{
   replyBar.style.display="none";
 };
 
-messageInput.onkeydown = startTyping;
+// Use input event for better real-time typing status
+messageInput.addEventListener('input', startTyping);
+messageInput.onkeydown = () => { startTyping(); }; // Keep for consistency
 
 // --- SEND BUTTON ---
 document.getElementById("sendBtn").onclick=async()=>{
@@ -759,7 +880,7 @@ document.getElementById("sendBtn").onclick=async()=>{
     time: messageTime 
   });
   
-  // Update lastMessageTime for ALL chat members
+  // Update lastMessageTime and lastMessageText for ALL chat members
   const chatSnap = await get(ref(db, "chats/" + currentChatId));
   const chat = chatSnap.val();
   let memberUids = [];
@@ -768,11 +889,14 @@ document.getElementById("sendBtn").onclick=async()=>{
   }
 
   const userChatUpdates = {};
+  const messageSnippet = text.length > 50 ? text.slice(0, 50) + '...' : text;
+  
   memberUids.forEach(uid => {
     if (uid !== currentUser.uid) {
       userChatUpdates[`/userChats/${uid}/${currentChatId}/unread`] = true;
     }
     userChatUpdates[`/userChats/${uid}/${currentChatId}/lastMessageTime`] = messageTime;
+    userChatUpdates[`/userChats/${uid}/${currentChatId}/lastMessageText`] = messageSnippet;
   });
 
   await update(ref(db), userChatUpdates);
@@ -781,7 +905,6 @@ document.getElementById("sendBtn").onclick=async()=>{
   replyTo=null;
   replyBar.style.display="none";
   
-  // Relaod the list instantly to see the chat move to the top
   loadChats(); 
 };
 
@@ -866,7 +989,8 @@ document.getElementById("groupBtn").onclick=async()=>{
     userChatUpdates[`/userChats/${uid}/${refNew.key}`] = { 
         name: name, 
         isGroup: true,
-        lastMessageTime: creationTime 
+        lastMessageTime: creationTime,
+        lastMessageText: "Group created"
     };
   });
   await update(ref(db), userChatUpdates);
@@ -874,7 +998,7 @@ document.getElementById("groupBtn").onclick=async()=>{
   loadChats();
 };
 
-// --- DM BUTTON ---
+// --- DM BUTTON (CLEANED AND FIXED) ---
 document.getElementById("dmBtn").onclick=async()=>{
   const uname = prompt("Username to DM:");
   if (!uname) return;
@@ -894,6 +1018,7 @@ document.getElementById("dmBtn").onclick=async()=>{
     const newMembersMap = { [currentUser.uid]: true, [otherUid]: true };
     const creationTime = Date.now(); 
     
+    // Step 1: Create the main chat node
     await set(refNew, {
       name: uname, 
       isGroup: false,
@@ -903,18 +1028,23 @@ document.getElementById("dmBtn").onclick=async()=>{
     const currentUserProfileSnap = await get(ref(db, "users/" + currentUser.uid));
     const currentUsername = currentUserProfileSnap.val() ? currentUserProfileSnap.val().username : "You";
 
+    // Step 2: Update userChats nodes for both users, storing otherUid and initial text
     await update(ref(db), {
-      // User's side shows the *other* user's name
+      // Current User's side (You)
       [`/userChats/${currentUser.uid}/${refNew.key}`]: { 
           name: otherUser.username, 
           isGroup: false,
-          lastMessageTime: creationTime 
+          lastMessageTime: creationTime,
+          otherUid: otherUid,
+          lastMessageText: "DM created"
       }, 
-      // Other user's side shows *your* username
+      // Other User's side
       [`/userChats/${otherUid}/${refNew.key}`]: { 
           name: currentUsername, 
           isGroup: false,
-          lastMessageTime: creationTime 
+          lastMessageTime: creationTime,
+          otherUid: currentUser.uid,
+          lastMessageText: "DM created"
       } 
     });
 
@@ -924,6 +1054,7 @@ document.getElementById("dmBtn").onclick=async()=>{
     alert("Error creating DM: " + e.message);
   }
 };
+
 
 // --- LISTEN FOR UNREAD ---
 function listenForUnread(){
@@ -962,6 +1093,7 @@ function listenForUnread(){
       activeMessageListeners.add(chatId);
 
       const msgRef = ref(db,"chats/"+chatId+"/messages");
+      // Use onChildAdded to listen for new messages
       onChildAdded(msgRef, msgSnap => {
         const m = msgSnap.val();
 
@@ -969,8 +1101,12 @@ function listenForUnread(){
            return;
         }
 
+        const messageSnippet = m.text.length > 50 ? m.text.slice(0, 50) + '...' : m.text;
+
+        // Update last message time and text
         update(ref(db, `/userChats/${currentUser.uid}/${chatId}`), {
-             lastMessageTime: m.time 
+             lastMessageTime: m.time,
+             lastMessageText: messageSnippet
         }).catch(()=>{});
 
         get(ref(db,"userChats/"+currentUser.uid+"/"+chatId)).then(userChatSnap=>{
@@ -979,7 +1115,15 @@ function listenForUnread(){
 
           if(m.time > lastRead && currentChatId !== chatId){
             update(ref(db,"userChats/"+currentUser.uid+"/"+chatId),{ unread:true });
-            showNotification(chat.name || "New message", m.text, chatId);
+            
+            // Reload chats for sorting and updating the snippet
+            loadChats(); 
+
+            // Notification logic
+            const chatDiv = [...chatList.children].find(d => d.dataset.id === chatId);
+            const title = chatDiv ? chatDiv.querySelector('div:first-child').firstChild.textContent.trim() : "New message";
+            showNotification(title, m.text, chatId);
+
           }
         }).catch(()=>{});
       });
