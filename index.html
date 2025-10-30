@@ -20,13 +20,12 @@
   }
   main {
     height: 100%;
+    width: 100%; /* Default to full width/height on all devices */
     display: flex;
     flex-direction: column;
     background: #1e1e1e; /* Main app background - slightly lighter than body */
     box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
-    /* NEW: Center the app container horizontally */
     margin: 0 auto;
-    max-width: 600px; /* Constrain width for a cleaner, non-clunky appearance */
   }
 
   .screen { 
@@ -54,10 +53,10 @@
   #loginScreen input {
     display: block;
     width: 90%;
-    max-width: 350px; /* Increased max-width for inputs */
+    max-width: 350px; 
     margin: 15px auto;
     padding: 14px;
-    border-radius: 8px; /* Slightly smaller radius for less clunky look */
+    border-radius: 8px; 
     border: none;
     background: #333333;
     color: #ffffff;
@@ -91,11 +90,11 @@
   }
   #chatList { flex: 1; overflow-y: auto; padding-bottom: 70px; }
   .chatItem {
-    padding: 15px 20px; /* Reduced vertical padding */
+    padding: 15px 20px; 
     border-bottom: 1px solid #333333;
     cursor: pointer;
     transition: background 0.2s;
-    font-size: 1.05rem; /* Slightly smaller font */
+    font-size: 1.05rem; 
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -124,12 +123,8 @@
     bottom: 0;
     left: 0;
     width: 100%;
-    /* NEW: Ensure menu also respects the max-width and centers */
-    max-width: 600px; 
-    left: 50%;
-    transform: translateX(-50%); 
     background: #121212;
-    padding: 10px 0; /* Reduced padding */
+    padding: 10px 0; 
     border-top: 1px solid #333333;
     z-index: 10;
   }
@@ -137,7 +132,7 @@
     background: #007bff;
     color: white;
     border: none;
-    padding: 8px 16px; /* Reduced button size */
+    padding: 8px 16px; 
     border-radius: 6px;
     font-weight: 500;
     cursor: pointer;
@@ -150,7 +145,7 @@
   #chatHeader {
     background: #1e1e1e;
     color: white;
-    padding: 10px 10px; /* Adjusted padding */
+    padding: 10px 10px; 
     display: flex;
     flex-direction: column; 
     border-bottom: 1px solid #333333;
@@ -179,7 +174,7 @@
     margin-left: 10px;
   }
   #chatName { 
-    font-size: 1.15rem; /* Reduced size */
+    font-size: 1.15rem; 
     font-weight: 600; 
   }
   
@@ -197,7 +192,7 @@
 
   /* Typing Indicator Style */
   #typingIndicator { 
-    font-size: 0.75rem; /* Reduced size */
+    font-size: 0.75rem; 
     color: #00aaff; 
     font-style: italic;
     height: 16px; 
@@ -216,10 +211,10 @@
     gap: 5px;
   }
   .msg {
-    max-width: 80%; /* Reduced max width */
+    max-width: 80%; 
     margin-bottom: 5px;
-    padding: 10px 14px; /* Reduced padding */
-    border-radius: 18px; /* Slightly smaller radius */
+    padding: 10px 14px; 
+    border-radius: 18px; 
     position: relative;
     word-wrap: break-word;
     line-height: 1.4;
@@ -238,7 +233,7 @@
     border-bottom-left-radius: 4px;
   }
   .timestamp { 
-    font-size: 0.65rem; /* Reduced size */
+    font-size: 0.65rem; 
     color: rgba(255,255,255,0.6); 
     text-align: right; 
     margin-top: 4px; 
@@ -248,7 +243,7 @@
     color: rgba(224,224,224,0.6);
   }
   .sender { 
-    font-size: 0.8rem; /* Reduced size */
+    font-size: 0.8rem; 
     color: #00c7ff; 
     font-weight: 600; 
     margin-bottom: 3px; 
@@ -260,24 +255,34 @@
   #replyBar {
     display: none;
     background: #2a2a2a;
-    padding: 8px 15px; /* Reduced vertical padding */
+    padding: 8px 15px; 
     border-left: 4px solid #007bff;
     font-size: 0.9rem;
     align-items: center;
     display: flex;
     justify-content: space-between;
   }
+  #replyText { flex: 1; color: #ccc; }
+  #cancelReply { 
+    background: none; 
+    border: none; 
+    color: #007bff; 
+    font-weight: bold; 
+    cursor: pointer; 
+    margin-left: 10px; 
+    font-size: 1.2rem;
+  }
 
   #inputBar {
     display: flex;
-    align-items: flex-end; /* Align to the bottom of the input area */
+    align-items: flex-end; 
     background: #1e1e1e;
-    padding: 8px 15px; /* Reduced vertical padding */
+    padding: 8px 15px; 
     border-top: 1px solid #333333;
   }
   #message {
     flex: 1;
-    padding: 10px 16px; /* Reduced padding */
+    padding: 10px 16px; 
     border-radius: 20px;
     border: none;
     background: #333333;
@@ -285,7 +290,7 @@
     outline: none;
     font-size: 1rem;
     resize: none;
-    max-height: 80px; /* Reduced max height */
+    max-height: 80px; 
     overflow-y: auto;
   }
   #sendBtn {
@@ -293,34 +298,109 @@
     color: white;
     border: none;
     border-radius: 50%;
-    width: 44px; /* Slightly reduced size */
-    height: 44px; /* Slightly reduced size */
+    width: 44px; 
+    height: 44px; 
     margin-left: 8px;
     font-size: 1.4rem;
     cursor: pointer;
     transition: background 0.3s, transform 0.1s;
-    /* NEW: Center the button nicely with the input */
     margin-bottom: 2px;
   }
   #sendBtn:hover { background: #0056b3; }
   #sendBtn:active { transform: scale(0.95); }
 
-  /* Desktop Optimization */
+  /* --- 4. USER SEARCH SCREEN (NEW STYLES) --- */
+  #searchScreen {
+      display: none;
+      flex-direction: column;
+      height: 100%;
+      background: #1e1e1e;
+  }
+  #searchHeader {
+      background: #121212;
+      color: white;
+      padding: 16px 20px;
+      font-weight: 700;
+      border-bottom: 1px solid #333333;
+      font-size: 1.3rem;
+      display: flex;
+      align-items: center;
+  }
+  #searchHeader button {
+      background: none;
+      border: none;
+      color: white;
+      font-size: 1.4rem;
+      cursor: pointer;
+      margin-right: 15px;
+  }
+  #searchHeader input {
+      flex-grow: 1;
+      padding: 8px 15px;
+      border-radius: 20px;
+      border: none;
+      background: #333333;
+      color: #ffffff;
+      font-size: 1rem;
+      outline: none;
+  }
+  #searchResults {
+      flex: 1;
+      overflow-y: auto;
+  }
+  .searchResultItem {
+      padding: 15px 20px;
+      border-bottom: 1px solid #333333;
+      cursor: pointer;
+      transition: background 0.2s;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+  }
+  .searchResultItem:hover { background: #252526; }
+  .searchResultItem .searchName {
+      font-size: 1.1rem;
+      font-weight: 500;
+  }
+  .searchResultItem button {
+      background: #00aaff;
+      color: white;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: background 0.2s;
+  }
+  .searchResultItem button:hover { background: #0077cc; }
+  
+  /* --- MEDIA QUERY: DESKTOP/TABLET OPTIMIZATION --- */
   @media (min-width: 700px) {
+    /* Main container is now full screen on desktop/tablet */
     main { 
-        max-width: 450px; /* Even smaller width for a super-sleek app look */
-        height: 90vh;
-        margin: 5vh auto; 
-        border-radius: 12px; 
-        overflow: hidden; 
+        max-width: 100%; /* Removes the mobile width constraint */
+        height: 100vh; /* Full vertical height */
+        margin: 0; /* Remove centering margin */
+        border-radius: 0; /* Remove rounded corners */
     }
+    /* Fixed bottom menu now correctly stays at the bottom of the full screen */
     #bottomMenu { 
-        position: static; 
-        padding: 10px;
-        /* Reset mobile centering on desktop */
+        position: fixed; 
+        padding: 10px 0;
+        left: 0;
         transform: none;
-        left: auto;
-        max-width: none;
+        max-width: 100%;
+    }
+  }
+
+  /* --- MEDIA QUERY: MOBILE OPTIMIZATION (re-apply sleek size) --- */
+  @media (max-width: 699px) {
+    main {
+        max-width: 600px; /* Keep it constrained for a good mobile look */
+        height: 100%;
+    }
+    #bottomMenu {
+        max-width: 600px; /* Keep the menu fixed to the mobile container width */
     }
   }
 </style>
@@ -341,10 +421,19 @@
     <div id="chatListHeader">Whisp Chats</div>
     <div id="chatList"></div>
     <div id="bottomMenu">
-      <button id="dmBtn">New DM</button>
+      <button id="searchBtn">Find User</button>
       <button id="groupBtn">New Group</button>
       <button id="logoutBtn">Logout</button>
     </div>
+  </section>
+  
+  <section id="searchScreen" class="screen">
+      <div id="searchHeader">
+          <button id="searchBackBtn">←</button>
+          <input id="searchUserInput" placeholder="Search by username..." />
+      </div>
+      <div id="searchResults">
+          </div>
   </section>
 
   <section id="chatScreen" class="screen">
@@ -392,6 +481,7 @@ const db = getDatabase(app);
 const loginScreen=document.getElementById("loginScreen"),
       chatListScreen=document.getElementById("chatListScreen"),
       chatScreen=document.getElementById("chatScreen"),
+      searchScreen=document.getElementById("searchScreen"), // NEW
       chatList=document.getElementById("chatList"),
       messagesDiv=document.getElementById("messages"),
       replyBar=document.getElementById("replyBar"),
@@ -399,15 +489,18 @@ const loginScreen=document.getElementById("loginScreen"),
       cancelReplyBtn=document.getElementById("cancelReply"),
       messageInput=document.getElementById("message"),
       typingIndicator=document.getElementById("typingIndicator"),
-      chatStatus=document.getElementById("chatStatus"); 
+      chatStatus=document.getElementById("chatStatus"),
+      searchUserInput=document.getElementById("searchUserInput"), // NEW
+      searchResultsDiv=document.getElementById("searchResults"); // NEW
 
 let currentUser=null, currentChatId=null, replyTo=null, currentListenerRef=null, otherUserUid=null; 
 let currentChatIsGroup=false, chatMembers={};
 let typingTimer=null, typingStatusRef=null; 
 
+let allUsersCache = {}; // NEW: Cache for all users
 let activeMessageListeners = new Set();
 
-const show=(s)=>{[loginScreen,chatListScreen,chatScreen].forEach(e=>e.classList.remove("active"));s.classList.add("active");};
+const show=(s)=>{[loginScreen,chatListScreen,chatScreen,searchScreen].forEach(e=>e.classList.remove("active"));s.classList.add("active");}; // Updated 'show' function
 
 // --- PRESENCE HANDLERS ---
 
@@ -503,6 +596,7 @@ onAuthStateChanged(auth, async user => {
     goOnline(); 
     show(chatListScreen);
     listenForUnread();
+    fetchAllUsers(); // NEW: Pre-load all users for search
   } else {
     currentUser=null;
     activeMessageListeners.forEach(chatId => {
@@ -948,6 +1042,21 @@ async function findUserByUsername(username) {
   return result;
 }
 
+// --- NEW: FETCH ALL USERS FOR CACHE ---
+async function fetchAllUsers() {
+    const usersRef = ref(db, 'users');
+    const snap = await get(usersRef);
+    if (snap.exists()) {
+        const users = snap.val();
+        allUsersCache = {};
+        for (const uid in users) {
+            if (users[uid].username) {
+                allUsersCache[uid] = users[uid].username;
+            }
+        }
+    }
+}
+
 
 // --- GROUP BUTTON ---
 document.getElementById("groupBtn").onclick=async()=>{
@@ -999,29 +1108,89 @@ document.getElementById("groupBtn").onclick=async()=>{
   loadChats();
 };
 
-// --- DM BUTTON (CLEANED AND FIXED) ---
-document.getElementById("dmBtn").onclick=async()=>{
-  const uname = prompt("Username to DM:");
-  if (!uname) return;
+// --- DM BUTTON (REMOVED: Replaced by the Search Screen) ---
+// document.getElementById("dmBtn") has been replaced by the Search Screen logic below. 
+// We are leaving the old DM creation logic (used by the search screen's button) intact.
 
+// --- NEW: USER SEARCH SCREEN LOGIC ---
+
+document.getElementById("searchBtn").onclick = () => {
+    searchUserInput.value = "";
+    searchResultsDiv.innerHTML = "";
+    show(searchScreen);
+};
+
+document.getElementById("searchBackBtn").onclick = () => {
+    show(chatListScreen);
+};
+
+searchUserInput.addEventListener('input', () => {
+    const queryText = searchUserInput.value.trim().toLowerCase();
+    searchResultsDiv.innerHTML = "";
+    
+    if (queryText.length < 2) {
+        searchResultsDiv.innerHTML = `<div style="padding: 20px; text-align: center; color: #888;">Type at least 2 characters to search.</div>`;
+        return;
+    }
+
+    let foundResults = 0;
+    
+    for (const uid in allUsersCache) {
+        const username = allUsersCache[uid];
+        if (uid !== currentUser.uid && username.toLowerCase().includes(queryText)) {
+            renderSearchResult(uid, username);
+            foundResults++;
+        }
+    }
+    
+    if (foundResults === 0) {
+        searchResultsDiv.innerHTML = `<div style="padding: 20px; text-align: center; color: #888;">No users found matching "${searchUserInput.value}".</div>`;
+    }
+});
+
+function renderSearchResult(uid, username) {
+    const div = document.createElement("div");
+    div.className = "searchResultItem";
+    div.innerHTML = `
+        <span class="searchName">${username}</span>
+        <button data-uid="${uid}" data-username="${username}">DM</button>
+    `;
+    
+    div.querySelector('button').onclick = (e) => startDmFromSearch(e.target.dataset.uid, e.target.dataset.username);
+    searchResultsDiv.append(div);
+}
+
+async function startDmFromSearch(otherUid, otherUsername) {
   try {
-    const otherUser = await findUserByUsername(uname);
-    if (!otherUser) {
-      return alert("User not found.");
-    }
-    const otherUid = otherUser.uid;
+    // 1. Check if a DM with this user already exists in userChats
+    const userChatsSnap = await get(ref(db, `userChats/${currentUser.uid}`));
+    let existingChatId = null;
 
-    if (otherUid === currentUser.uid) {
-      return alert("You can't DM yourself!");
+    if (userChatsSnap.exists()) {
+        for (const chatChild of Object.values(userChatsSnap.val())) {
+            if (chatChild.otherUid === otherUid && chatChild.isGroup === false) {
+                existingChatId = chatChild.key;
+                break;
+            }
+        }
     }
 
+    if (existingChatId) {
+        // Chat exists, navigate to it
+        alert(`DM with ${otherUsername} already exists! Opening chat...`);
+        show(chatListScreen);
+        await loadChats();
+        openChat(existingChatId, otherUsername);
+        return;
+    }
+
+    // 2. DM does not exist, create it (reusing the DM creation logic)
     const refNew = push(ref(db, "chats"));
     const newMembersMap = { [currentUser.uid]: true, [otherUid]: true };
     const creationTime = Date.now(); 
     
-    // Step 1: Create the main chat node
     await set(refNew, {
-      name: uname, 
+      name: otherUsername, 
       isGroup: false,
       members: newMembersMap
     });
@@ -1029,11 +1198,10 @@ document.getElementById("dmBtn").onclick=async()=>{
     const currentUserProfileSnap = await get(ref(db, "users/" + currentUser.uid));
     const currentUsername = currentUserProfileSnap.val() ? currentUserProfileSnap.val().username : "You";
 
-    // Step 2: Update userChats nodes for both users, storing otherUid and initial text
     await update(ref(db), {
       // Current User's side (You)
       [`/userChats/${currentUser.uid}/${refNew.key}`]: { 
-          name: otherUser.username, 
+          name: otherUsername, 
           isGroup: false,
           lastMessageTime: creationTime,
           otherUid: otherUid,
@@ -1049,13 +1217,15 @@ document.getElementById("dmBtn").onclick=async()=>{
       } 
     });
 
-    loadChats();
+    // 3. Navigate to the new chat
+    show(chatListScreen);
+    await loadChats();
+    openChat(refNew.key, otherUsername);
 
   } catch (e) {
     alert("Error creating DM: " + e.message);
   }
-};
-
+}
 
 // --- LISTEN FOR UNREAD ---
 function listenForUnread(){
