@@ -12,7 +12,7 @@
     padding: 0;
     height: 100%;
     /* Use a cleaner, slightly softer dark mode palette */
-    background: #1e1e1e; 
+    background: #121212; /* Deep background for contrast */
     color: #e0e0e0;     
     font-family: 'Roboto', sans-serif;
     -webkit-font-smoothing: antialiased;
@@ -22,8 +22,11 @@
     height: 100%;
     display: flex;
     flex-direction: column;
-    background: #252526; /* Main app background */
+    background: #1e1e1e; /* Main app background - slightly lighter than body */
     box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+    /* NEW: Center the app container horizontally */
+    margin: 0 auto;
+    max-width: 600px; /* Constrain width for a cleaner, non-clunky appearance */
   }
 
   .screen { 
@@ -45,16 +48,16 @@
   #loginScreen h2 { 
     font-size: 2.2rem; 
     margin-bottom: 25px; 
-    color: #007bff; /* Primary brand color */
+    color: #007bff; 
     font-weight: 700;
   }
   #loginScreen input {
     display: block;
-    width: 80%;
-    max-width: 300px;
+    width: 90%;
+    max-width: 350px; /* Increased max-width for inputs */
     margin: 15px auto;
-    padding: 15px;
-    border-radius: 10px;
+    padding: 14px;
+    border-radius: 8px; /* Slightly smaller radius for less clunky look */
     border: none;
     background: #333333;
     color: #ffffff;
@@ -66,7 +69,7 @@
     color: white;
     border: none;
     padding: 12px 30px;
-    border-radius: 10px;
+    border-radius: 8px;
     cursor: pointer;
     font-weight: 500;
     font-size: 1.1rem;
@@ -77,9 +80,9 @@
   #loginBtn:active { transform: scale(0.98); }
 
   /* --- 2. CHAT LIST SCREEN --- */
-  #chatListScreen { background: #252526; flex: 1; }
+  #chatListScreen { background: #1e1e1e; flex: 1; }
   #chatListHeader {
-    background: #1e1e1e;
+    background: #121212;
     color: white;
     padding: 16px 20px;
     font-weight: 700;
@@ -88,27 +91,28 @@
   }
   #chatList { flex: 1; overflow-y: auto; padding-bottom: 70px; }
   .chatItem {
-    padding: 18px 20px;
+    padding: 15px 20px; /* Reduced vertical padding */
     border-bottom: 1px solid #333333;
     cursor: pointer;
     transition: background 0.2s;
-    font-size: 1.1rem;
+    font-size: 1.05rem; /* Slightly smaller font */
     display: flex;
     justify-content: space-between;
     align-items: center;
   }
-  .chatItem:hover { background: #333333; }
+  .chatItem:hover { background: #252526; }
   .chatItem.unread {
     font-weight: 500;
     background: #2a3a4a; 
   }
   .chatItem .lastMessage {
-      font-size: 0.9rem;
-      color: #aaa;
-      max-width: 60%;
+      font-size: 0.85rem;
+      color: #999;
+      max-width: 90%;
       overflow: hidden;
       white-space: nowrap;
       text-overflow: ellipsis;
+      margin-top: 2px;
   }
 
   /* Bottom Menu */
@@ -120,8 +124,12 @@
     bottom: 0;
     left: 0;
     width: 100%;
-    background: #1e1e1e;
-    padding: 12px 0;
+    /* NEW: Ensure menu also respects the max-width and centers */
+    max-width: 600px; 
+    left: 50%;
+    transform: translateX(-50%); 
+    background: #121212;
+    padding: 10px 0; /* Reduced padding */
     border-top: 1px solid #333333;
     z-index: 10;
   }
@@ -129,8 +137,8 @@
     background: #007bff;
     color: white;
     border: none;
-    padding: 10px 18px;
-    border-radius: 8px;
+    padding: 8px 16px; /* Reduced button size */
+    border-radius: 6px;
     font-weight: 500;
     cursor: pointer;
     transition: background 0.3s;
@@ -142,7 +150,7 @@
   #chatHeader {
     background: #1e1e1e;
     color: white;
-    padding: 10px 15px;
+    padding: 10px 10px; /* Adjusted padding */
     display: flex;
     flex-direction: column; 
     border-bottom: 1px solid #333333;
@@ -151,9 +159,9 @@
     background: none; 
     border: none; 
     color: white; 
-    font-size: 1.5rem; 
+    font-size: 1.4rem; 
     cursor: pointer; 
-    padding: 0 10px; 
+    padding: 0 5px; 
     transition: color 0.2s;
   }
   #chatHeader button:hover { color: #007bff; }
@@ -171,30 +179,30 @@
     margin-left: 10px;
   }
   #chatName { 
-    font-size: 1.2rem; 
-    font-weight: 700; 
+    font-size: 1.15rem; /* Reduced size */
+    font-weight: 600; 
   }
   
   /* Status Styles */
   #chatStatus { 
-    font-size: 0.75rem; 
+    font-size: 0.7rem; 
     color: #999; 
-    height: 15px; 
+    height: 14px; 
     font-weight: 400;
   }
   #chatStatus.online { 
-    color: #00ff8c; /* Vibrant green for online */
+    color: #00ff8c; 
     font-weight: 500;
   } 
 
   /* Typing Indicator Style */
   #typingIndicator { 
-    font-size: 0.8rem; 
+    font-size: 0.75rem; /* Reduced size */
     color: #00aaff; 
     font-style: italic;
-    height: 18px; 
+    height: 16px; 
     text-align: left;
-    padding: 5px 0 0 45px; /* Aligned with chat name */
+    padding: 3px 0 0 40px; 
     width: 100%;
     overflow: hidden;
   }
@@ -208,42 +216,42 @@
     gap: 5px;
   }
   .msg {
-    max-width: 85%;
-    margin-bottom: 8px;
-    padding: 12px 16px;
-    border-radius: 20px;
+    max-width: 80%; /* Reduced max width */
+    margin-bottom: 5px;
+    padding: 10px 14px; /* Reduced padding */
+    border-radius: 18px; /* Slightly smaller radius */
     position: relative;
     word-wrap: break-word;
-    line-height: 1.5;
+    line-height: 1.4;
     box-shadow: 0 1px 2px rgba(0,0,0,0.2);
   }
   .me {
     align-self: flex-end;
-    background: #007bff; /* Primary blue for me */
+    background: #007bff; 
     color: white;
     border-bottom-right-radius: 4px;
   }
   .them {
     align-self: flex-start;
-    background: #3a3a3a; /* Soft gray for them */
+    background: #333333; 
     color: #e0e0e0;
     border-bottom-left-radius: 4px;
   }
   .timestamp { 
-    font-size: 0.7rem; 
+    font-size: 0.65rem; /* Reduced size */
     color: rgba(255,255,255,0.6); 
     text-align: right; 
-    margin-top: 5px; 
+    margin-top: 4px; 
     display: block;
   }
   .them .timestamp {
     color: rgba(224,224,224,0.6);
   }
   .sender { 
-    font-size: 0.85rem; 
+    font-size: 0.8rem; /* Reduced size */
     color: #00c7ff; 
     font-weight: 600; 
-    margin-bottom: 4px; 
+    margin-bottom: 3px; 
   }
   .msg a { color: inherit; text-decoration: underline; }
 
@@ -252,54 +260,47 @@
   #replyBar {
     display: none;
     background: #2a2a2a;
-    padding: 10px 15px;
+    padding: 8px 15px; /* Reduced vertical padding */
     border-left: 4px solid #007bff;
-    font-size: 0.95rem;
+    font-size: 0.9rem;
     align-items: center;
     display: flex;
     justify-content: space-between;
   }
-  #replyText { flex: 1; color: #ccc; }
-  #cancelReply { 
-    background: none; 
-    border: none; 
-    color: #007bff; 
-    font-weight: bold; 
-    cursor: pointer; 
-    margin-left: 10px; 
-    font-size: 1.2rem;
-  }
 
   #inputBar {
     display: flex;
-    align-items: center;
+    align-items: flex-end; /* Align to the bottom of the input area */
     background: #1e1e1e;
-    padding: 10px 15px;
+    padding: 8px 15px; /* Reduced vertical padding */
     border-top: 1px solid #333333;
   }
   #message {
     flex: 1;
-    padding: 12px 18px;
-    border-radius: 25px;
+    padding: 10px 16px; /* Reduced padding */
+    border-radius: 20px;
     border: none;
-    background: #3a3a3a;
+    background: #333333;
     color: #fff;
     outline: none;
     font-size: 1rem;
     resize: none;
-    max-height: 100px; /* Prevent oversized input */
+    max-height: 80px; /* Reduced max height */
+    overflow-y: auto;
   }
   #sendBtn {
     background: #007bff;
     color: white;
     border: none;
     border-radius: 50%;
-    width: 48px;
-    height: 48px;
-    margin-left: 10px;
-    font-size: 1.5rem;
+    width: 44px; /* Slightly reduced size */
+    height: 44px; /* Slightly reduced size */
+    margin-left: 8px;
+    font-size: 1.4rem;
     cursor: pointer;
     transition: background 0.3s, transform 0.1s;
+    /* NEW: Center the button nicely with the input */
+    margin-bottom: 2px;
   }
   #sendBtn:hover { background: #0056b3; }
   #sendBtn:active { transform: scale(0.95); }
@@ -307,7 +308,7 @@
   /* Desktop Optimization */
   @media (min-width: 700px) {
     main { 
-        max-width: 600px; 
+        max-width: 450px; /* Even smaller width for a super-sleek app look */
         height: 90vh;
         margin: 5vh auto; 
         border-radius: 12px; 
@@ -316,6 +317,10 @@
     #bottomMenu { 
         position: static; 
         padding: 10px;
+        /* Reset mobile centering on desktop */
+        transform: none;
+        left: auto;
+        max-width: none;
     }
   }
 </style>
@@ -406,7 +411,6 @@ const show=(s)=>{[loginScreen,chatListScreen,chatScreen].forEach(e=>e.classList.
 
 // --- PRESENCE HANDLERS ---
 
-// Utility function to format last seen timestamp
 function formatLastSeen(timestamp) {
     if (!timestamp) return "";
     const date = new Date(timestamp);
@@ -583,7 +587,6 @@ async function loadChats(){
                  msgSnap.forEach(child => lastMsg = child.val());
                  if (lastMsg) {
                      lastMessageText = lastMsg.text;
-                     // We would update userChats here if we wanted to permanently store it
                  }
              }
           }
@@ -841,7 +844,6 @@ function renderMessage(m){
   });
   
   div.addEventListener("click", (e) => {
-      // Prevent reply if clicking a link
       if (e.target.tagName !== 'A') {
           showReplyBar(m.text);
       }
@@ -860,9 +862,8 @@ cancelReplyBtn.onclick=()=>{
   replyBar.style.display="none";
 };
 
-// Use input event for better real-time typing status
 messageInput.addEventListener('input', startTyping);
-messageInput.onkeydown = () => { startTyping(); }; // Keep for consistency
+messageInput.onkeydown = () => { startTyping(); }; 
 
 // --- SEND BUTTON ---
 document.getElementById("sendBtn").onclick=async()=>{
@@ -1093,7 +1094,6 @@ function listenForUnread(){
       activeMessageListeners.add(chatId);
 
       const msgRef = ref(db,"chats/"+chatId+"/messages");
-      // Use onChildAdded to listen for new messages
       onChildAdded(msgRef, msgSnap => {
         const m = msgSnap.val();
 
@@ -1116,10 +1116,8 @@ function listenForUnread(){
           if(m.time > lastRead && currentChatId !== chatId){
             update(ref(db,"userChats/"+currentUser.uid+"/"+chatId),{ unread:true });
             
-            // Reload chats for sorting and updating the snippet
             loadChats(); 
 
-            // Notification logic
             const chatDiv = [...chatList.children].find(d => d.dataset.id === chatId);
             const title = chatDiv ? chatDiv.querySelector('div:first-child').firstChild.textContent.trim() : "New message";
             showNotification(title, m.text, chatId);
