@@ -141,7 +141,7 @@
   #bottomMenu button:hover { background: #0056b3; }
   
   /* --- 3. CHAT SCREEN --- */
-  #chatScreen { background: #121212; position: relative; } /* Added relative for menu positioning */
+  #chatScreen { background: #121212; position: relative; } 
   #chatHeader {
     background: #1e1e1e;
     color: white;
@@ -165,7 +165,7 @@
     width: 100%; 
     display: flex; 
     align-items: center; 
-    justify-content: space-between; /* To push settings button to the right */
+    justify-content: space-between; 
   }
   #chatNameContainer { 
     display: flex; 
@@ -179,16 +179,16 @@
     font-weight: 600; 
   }
 
-  /* --- Group Settings Menu Style --- */
+  /* Group Settings Menu Style */
   #settingsBtn {
     margin-left: 10px;
     font-size: 1.2rem !important;
-    display: none; /* Hidden by default */
+    display: none; 
   }
 
   #groupSettingsMenu {
     position: absolute;
-    top: 60px; /* Adjust based on header height */
+    top: 60px; 
     right: 15px;
     background: #333;
     border-radius: 8px;
@@ -212,8 +212,7 @@
   #groupSettingsMenu button:hover {
     background: #444;
   }
-  /* --- End Group Settings Menu Style --- */
-
+  
   /* Status Styles */
   #chatStatus { 
     font-size: 0.7rem; 
@@ -268,6 +267,16 @@
     color: #e0e0e0;
     border-bottom-left-radius: 4px;
   }
+
+  /* IMAGE MESSAGE STYLE */
+  .msg img {
+      max-width: 100%;
+      max-height: 300px;
+      border-radius: 8px;
+      margin: 4px 0;
+      cursor: pointer;
+  }
+  
   .timestamp { 
     font-size: 0.65rem; 
     color: rgba(255,255,255,0.6); 
@@ -316,6 +325,29 @@
     padding: 8px 15px; 
     border-top: 1px solid #333333;
   }
+
+  /* Image Input Button Styling */
+  #imageUploadLabel {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #444; /* Darker background for the button */
+      color: #fff;
+      border: none;
+      border-radius: 50%;
+      width: 44px; 
+      height: 44px; 
+      margin-right: 8px;
+      font-size: 1.4rem;
+      cursor: pointer;
+      transition: background 0.3s;
+      margin-bottom: 2px;
+  }
+  #imageUploadLabel:hover { background: #555; }
+  #imageUpload {
+      display: none; /* Hide the actual file input */
+  }
+
   #message {
     flex: 1;
     padding: 10px 16px; 
@@ -411,7 +443,8 @@
             <span id="chatName">Chat</span>
             <span id="chatStatus"></span>
         </div>
-        <button id="settingsBtn" style="display: none;">⋮</button> </div>
+        <button id="settingsBtn" style="display: none;">⋮</button>
+      </div>
       <div id="typingIndicator"></div>
     </div>
     
@@ -419,12 +452,16 @@
         <button id="renameGroupBtn">Rename Group</button>
         <button id="addMembersBtn">Add Members</button>
     </div>
+
     <div id="messages"></div>
     <div id="replyBar">
       <span id="replyText"></span>
       <button id="cancelReply">✖</button>
     </div>
     <div id="inputBar">
+        <input type="file" id="imageUpload" accept="image/*" />
+        <label for="imageUpload" id="imageUploadLabel">🖼️</label>
+        
       <textarea id="message" placeholder="Type a message..."></textarea>
       <button id="sendBtn">➤</button>
     </div>
@@ -434,14 +471,17 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
-import { getDatabase, ref, set, push, get, onChildAdded, onValue, off, update, remove, onDisconnect, query, limitToLast } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js";
+import { getDatabase, ref as dbRef, set, push, get, onChildAdded, onValue, off, update, remove, onDisconnect, query, limitToLast } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js";
+// NEW: Import Firebase Storage modules
+import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-storage.js";
+
 
 const firebaseConfig = {
   apiKey: "AIzaSyCEdtncZpDgOSnULIjopee7GKh9h9hveKk",
   authDomain: "messagingapp-7ede5.firebaseapp.com",
   databaseURL: "https://messagingapp-7ede5-default-rtdb.firebaseio.com",
   projectId: "messagingapp-7ede5",
-  storageBucket: "messagingapp-7ede5.firebasestorage.app",
+  storageBucket: "messagingapp-7ede5.appspot.com", // Ensure this bucket is correct
   messagingSenderId: "221896974865",
   appId: "1:221896974865:web:3faca4885e48ee656907b0"
 };
@@ -449,6 +489,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getDatabase(app);
+const storage = getStorage(app); // NEW: Initialize Firebase Storage
 
 const loginScreen=document.getElementById("loginScreen"),
       chatListScreen=document.getElementById("chatListScreen"),
@@ -461,8 +502,9 @@ const loginScreen=document.getElementById("loginScreen"),
       messageInput=document.getElementById("message"),
       typingIndicator=document.getElementById("typingIndicator"),
       chatStatus=document.getElementById("chatStatus"),
-      settingsBtn = document.getElementById("settingsBtn"), // NEW
-      groupSettingsMenu = document.getElementById("groupSettingsMenu"); // NEW
+      settingsBtn = document.getElementById("settingsBtn"),
+      groupSettingsMenu = document.getElementById("groupSettingsMenu"),
+      imageUploadInput = document.getElementById("imageUpload"); // NEW: Image input
 
 let currentUser=null, currentChatId=null, replyTo=null, currentListenerRef=null, otherUserUid=null; 
 let currentChatIsGroup=false, chatMembers={};
@@ -472,7 +514,7 @@ let activeMessageListeners = new Set();
 
 const show=(s)=>{[loginScreen,chatListScreen,chatScreen].forEach(e=>e.classList.remove("active"));s.classList.add("active");}; 
 
-// --- PRESENCE HANDLERS ---
+// --- PRESENCE HANDLERS (UNCHANGED) ---
 
 function formatLastSeen(timestamp) {
     if (!timestamp) return "";
@@ -492,7 +534,7 @@ function formatLastSeen(timestamp) {
 
 async function goOnline() {
     if (!currentUser) return;
-    const isOnlineRef = ref(db, 'presence/' + currentUser.uid);
+    const isOnlineRef = dbRef(db, 'presence/' + currentUser.uid);
 
     await set(isOnlineRef, true);
     onDisconnect(isOnlineRef).set(Date.now());
@@ -500,13 +542,13 @@ async function goOnline() {
 
 async function goOffline() {
     if (!currentUser) return;
-    const isOnlineRef = ref(db, 'presence/' + currentUser.uid);
+    const isOnlineRef = dbRef(db, 'presence/' + currentUser.uid);
 
     onDisconnect(isOnlineRef).cancel();
     await set(isOnlineRef, Date.now());
 }
 
-// --- LOGIN HANDLER ---
+// --- LOGIN HANDLER (UNCHANGED) ---
 document.getElementById("loginBtn").onclick = async () => {
   const emailVal = document.getElementById("email").value.trim();
   const passwordVal = document.getElementById("password").value.trim();
@@ -529,7 +571,7 @@ document.getElementById("loginBtn").onclick = async () => {
       const normalizedUsername = finalUsername.toLowerCase();
 
       // --- UNIQUENESS CHECK ---
-      const usersRef = ref(db, 'users');
+      const usersRef = dbRef(db, 'users');
       const snap = await get(usersRef);
       if (snap.exists()) {
         const users = snap.val();
@@ -548,7 +590,7 @@ document.getElementById("loginBtn").onclick = async () => {
       const uid = cred.user.uid;
       
       // 4. Set user profile
-      await set(ref(db, "users/" + uid), { 
+      await set(dbRef(db, "users/" + uid), { 
         username: finalUsername, 
         email: emailVal 
       });
@@ -569,18 +611,18 @@ onAuthStateChanged(auth, async user => {
   } else {
     currentUser=null;
     activeMessageListeners.forEach(chatId => {
-      try { off(ref(db,"chats/"+chatId+"/messages")); } catch(_) {}
+      try { off(dbRef(db,"chats/"+chatId+"/messages")); } catch(_) {}
     });
     activeMessageListeners.clear();
     show(loginScreen);
   }
 });
 
-// --- LOAD CHATS (WITH DM NAME CORRECTION AND LAST MESSAGE SNIPPET) ---
+// --- LOAD CHATS (UNCHANGED) ---
 async function loadChats(){
   chatList.innerHTML="";
   
-  const userChatsSnap = await get(ref(db, `userChats/${currentUser.uid}`));
+  const userChatsSnap = await get(dbRef(db, `userChats/${currentUser.uid}`));
   if(!userChatsSnap.exists()) return;
 
   const chatPromises = [];
@@ -588,7 +630,7 @@ async function loadChats(){
       const chatId = chatChild.key;
       const data = chatChild.val(); 
       
-      const chatPromise = get(ref(db, `chats/${chatId}`)).then(async chatSnap => {
+      const chatPromise = get(dbRef(db, `chats/${chatId}`)).then(async chatSnap => {
           if (!chatSnap.exists()) return null;
           
           const chat = chatSnap.val();
@@ -622,7 +664,7 @@ async function loadChats(){
           }
 
           if (isDM && finalOtherUid) { 
-              const userSnap = await get(ref(db, "users/" + finalOtherUid));
+              const userSnap = await get(dbRef(db, "users/" + finalOtherUid));
               if (userSnap.exists()) {
                   const correctName = userSnap.val().username || "DM User"; 
                   chatName = correctName; 
@@ -643,13 +685,13 @@ async function loadChats(){
           // --- Get Last Message Snippet ---
           let lastMessageText = data.lastMessageText || "No messages yet";
           if (!data.lastMessageText) {
-             const messagesQuery = query(ref(db, `chats/${chatId}/messages`), limitToLast(1));
+             const messagesQuery = query(dbRef(db, `chats/${chatId}/messages`), limitToLast(1));
              const msgSnap = await get(messagesQuery);
              if (msgSnap.exists()) {
                  let lastMsg = null;
                  msgSnap.forEach(child => lastMsg = child.val());
                  if (lastMsg) {
-                     lastMessageText = lastMsg.text;
+                     lastMessageText = lastMsg.text || (lastMsg.imageUrl ? "Image" : "Message"); // Correct for Image
                  }
              }
           }
@@ -691,7 +733,7 @@ async function loadChats(){
         const updateData = { name: item.name };
         if (item.id.otherUid) updateData.otherUid = item.id.otherUid; // Only set if available
         correctionPromises.push(
-            update(ref(db, `/userChats/${currentUser.uid}/${item.id}`), updateData)
+            update(dbRef(db, `/userChats/${currentUser.uid}/${item.id}`), updateData)
         );
     }
   });
@@ -699,12 +741,12 @@ async function loadChats(){
   await Promise.all(correctionPromises).catch(e => console.error("Error during chat name correction:", e));
 }
 
-// --- TYPING INDICATOR HANDLERS ---
+// --- TYPING INDICATOR HANDLERS (UNCHANGED) ---
 function startTyping(){
     if(!currentChatId || !currentUser) return;
     if(typingTimer) clearTimeout(typingTimer);
 
-    typingStatusRef = ref(db, "typing/" + currentChatId + "/" + currentUser.uid);
+    typingStatusRef = dbRef(db, "typing/" + currentChatId + "/" + currentUser.uid);
     set(typingStatusRef, Date.now()).catch(()=>{});
     typingTimer = setTimeout(stopTyping, 2000);
 }
@@ -716,7 +758,7 @@ function stopTyping(){
     typingStatusRef = null;
 }
 
-// --- OPEN CHAT (WITH TYPING & PRESENCE LISTENER) ---
+// --- OPEN CHAT (UNCHANGED) ---
 async function openChat(id,name){
   stopTyping(); 
   
@@ -728,25 +770,25 @@ async function openChat(id,name){
   chatStatus.classList.remove("online");
   chatMembers = {}; 
   otherUserUid = null; 
-  groupSettingsMenu.style.display = 'none'; // Hide menu on chat open
-  settingsBtn.style.display = 'none'; // Hide button by default
+  groupSettingsMenu.style.display = 'none'; 
+  settingsBtn.style.display = 'none'; 
 
   show(chatScreen);
 
   if(currentListenerRef){ off(currentListenerRef); currentListenerRef=null; }
 
-  const chatSnap=await get(ref(db,"chats/"+id));
+  const chatSnap=await get(dbRef(db,"chats/"+id));
   if (!chatSnap.exists()) return;
   
   const chat=chatSnap.val();
   currentChatIsGroup = chat.isGroup || false;
   
-  if (currentChatIsGroup) { // NEW: Show settings button for groups
+  if (currentChatIsGroup) { 
       settingsBtn.style.display = 'block';
   }
 
   // Determine otherUserUid from userChats data (more reliable)
-  const userChatSnap = await get(ref(db, `userChats/${currentUser.uid}/${id}`));
+  const userChatSnap = await get(dbRef(db, `userChats/${currentUser.uid}/${id}`));
   const userChatData = userChatSnap.val();
   if (userChatData && userChatData.otherUid) {
       otherUserUid = userChatData.otherUid;
@@ -763,7 +805,7 @@ async function openChat(id,name){
 
     for(const uid of memberUids){
       try {
-        const uSnap = await get(ref(db,"users/"+uid));
+        const uSnap = await get(dbRef(db,"users/"+uid));
         if(uSnap.exists()) chatMembers[uid] = uSnap.val().username || "Unknown";
       } catch(e) {
         chatMembers[uid] = "Unknown";
@@ -771,9 +813,9 @@ async function openChat(id,name){
     }
   }
   
-  // --- Presence Listener for DM Status ---
+  // --- Presence Listener for DM Status (UNCHANGED) ---
   if (otherUserUid) {
-      const presenceRef = ref(db, 'presence/' + otherUserUid);
+      const presenceRef = dbRef(db, 'presence/' + otherUserUid);
       onValue(presenceRef, (snapshot) => {
           if (!snapshot.exists()) {
               chatStatus.textContent = "";
@@ -802,8 +844,8 @@ async function openChat(id,name){
   // --- End Presence Listener ---
 
 
-  // --- Typing Indicator Listener ---
-  const typingRef = ref(db, "typing/" + id);
+  // --- Typing Indicator Listener (UNCHANGED) ---
+  const typingRef = dbRef(db, "typing/" + id);
   onValue(typingRef, (snapshot) => {
       if(!snapshot.exists()) {
           typingIndicator.textContent = "";
@@ -838,7 +880,7 @@ async function openChat(id,name){
 
 
   // mark messages as read and set lastRead
-  await update(ref(db,"userChats/"+currentUser.uid+"/"+id), {
+  await update(dbRef(db,"userChats/"+currentUser.uid+"/"+id), {
     unread: false,
     lastRead: Date.now()
   });
@@ -853,12 +895,12 @@ async function openChat(id,name){
     }).catch(()=>{});
   }
 
-  const msgRef=ref(db,"chats/"+id+"/messages");
+  const msgRef=dbRef(db,"chats/"+id+"/messages");
   currentListenerRef=msgRef;
   onChildAdded(msgRef,s=>renderMessage(s.val()));
 }
 
-// --- RENDER MESSAGE (SWIPE TO REPLY ADDED) ---
+// --- RENDER MESSAGE (UPDATED for images) ---
 function renderMessage(m){
   const div=document.createElement("div");
   div.classList.add("msg",m.sender===currentUser.uid?"me":"them");
@@ -869,22 +911,34 @@ function renderMessage(m){
     senderLabel=`<div class="sender">${uname}</div>`;
   }
 
-  // Simple link detection (basic)
-  const linkedText = m.text.replace(
-      /(https?:\/\/[^\s]+)/g,
-      '<a href="$1" target="_blank" style="color: inherit;">$1</a>'
-  );
+  let contentHTML = "";
+  
+  if (m.imageUrl) {
+      // If it's an image message
+      contentHTML = `<img src="${m.imageUrl}" alt="Sent Image" onclick="window.open('${m.imageUrl}', '_blank')" />`;
+      if (m.text) {
+          // If there's also text (caption)
+          contentHTML += m.text.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" style="color: inherit;">$1</a>');
+      }
+  } else {
+      // If it's a standard text message
+      const linkedText = m.text.replace(
+          /(https?:\/\/[^\s]+)/g,
+          '<a href="$1" target="_blank" style="color: inherit;">$1</a>'
+      );
+      contentHTML = linkedText;
+  }
 
   div.innerHTML=`
     ${senderLabel}
     ${m.replyTo?`<div style="font-size:0.85rem;color:#bbb;border-left:3px solid #007bff;padding-left:6px;margin-bottom:3px;opacity:0.8;">${m.replyTo.slice(0, 50)}...</div>`:""}
-    ${linkedText}
+    ${contentHTML}
     <div class="timestamp">${new Date(m.time).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</div>
   `;
   messagesDiv.append(div);
   messagesDiv.scrollTop=messagesDiv.scrollHeight;
 
-  // --- SWIPE TO REPLY LOGIC ---
+  // --- SWIPE TO REPLY LOGIC (UNCHANGED) ---
   let startX = 0;
   let isDragging = false;
 
@@ -906,15 +960,16 @@ function renderMessage(m){
 
   div.addEventListener("touchend", () => {
     if (isDragging) {
-      showReplyBar(m.text);
+      showReplyBar(m.text || "Image"); // Use "Image" as placeholder if no text
       isDragging = false;
     }
     startX = 0;
   });
   
   div.addEventListener("click", (e) => {
-      if (e.target.tagName !== 'A') {
-          showReplyBar(m.text);
+      // Only show reply bar if the user didn't click an image or link
+      if (e.target.tagName !== 'A' && e.target.tagName !== 'IMG') {
+          showReplyBar(m.text || "Image"); 
       }
   });
   // --- END SWIPE TO REPLY LOGIC ---
@@ -934,7 +989,90 @@ cancelReplyBtn.onclick=()=>{
 messageInput.addEventListener('input', startTyping);
 messageInput.onkeydown = () => { startTyping(); }; 
 
-// --- SEND BUTTON ---
+// --- IMAGE UPLOAD LOGIC ---
+imageUploadInput.onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file || !currentChatId) return;
+
+    if (file.size > 5 * 1024 * 1024) { // Limit to 5MB
+        alert("Image size is too large. Max 5MB allowed.");
+        imageUploadInput.value = '';
+        return;
+    }
+
+    const caption = prompt("Optional: Add a caption for your image:");
+    
+    document.getElementById("sendBtn").disabled = true;
+    imageUploadInput.disabled = true;
+    
+    try {
+        await sendImage(file, caption);
+    } catch (error) {
+        alert("Image upload failed: " + error.message);
+    } finally {
+        document.getElementById("sendBtn").disabled = false;
+        imageUploadInput.disabled = false;
+        imageUploadInput.value = ''; // Clear input
+    }
+};
+
+async function sendImage(file, caption = "") {
+    if (!currentUser || !currentChatId) throw new Error("Not authenticated or chat not open.");
+    
+    const filePath = `${currentChatId}/${Date.now()}_${file.name}`;
+    const fileRef = storageRef(storage, filePath);
+    
+    // 1. Upload the file to Firebase Storage
+    const uploadTask = await uploadBytes(fileRef, file);
+    
+    // 2. Get the public download URL
+    const downloadURL = await getDownloadURL(uploadTask.ref);
+    
+    const messageTime = Date.now();
+    const messageData = {
+        sender: currentUser.uid,
+        imageUrl: downloadURL,
+        text: caption.trim() || null, 
+        replyTo,
+        time: messageTime
+    };
+
+    // 3. Send the message containing the URL to Realtime Database
+    await push(dbRef(db, "chats/" + currentChatId + "/messages"), messageData);
+
+    // 4. Update chat list
+    const messageSnippet = caption.trim() ? "Image: " + caption.slice(0, 30) + "..." : "Image sent";
+    await updateChatList(messageTime, messageSnippet);
+
+    replyTo = null;
+    replyBar.style.display = "none";
+    
+    loadChats();
+}
+
+// --- SHARED CHAT LIST UPDATE LOGIC ---
+async function updateChatList(messageTime, messageSnippet) {
+    const chatSnap = await get(dbRef(db, "chats/" + currentChatId));
+    const chat = chatSnap.val();
+    let memberUids = [];
+    if (chat.members) {
+        memberUids = Array.isArray(chat.members) ? chat.members : Object.keys(chat.members);
+    }
+
+    const userChatUpdates = {};
+    memberUids.forEach(uid => {
+        if (uid !== currentUser.uid) {
+            userChatUpdates[`/userChats/${uid}/${currentChatId}/unread`] = true;
+        }
+        userChatUpdates[`/userChats/${uid}/${currentChatId}/lastMessageTime`] = messageTime;
+        userChatUpdates[`/userChats/${uid}/${currentChatId}/lastMessageText`] = messageSnippet;
+    });
+
+    await update(dbRef(db), userChatUpdates);
+}
+
+
+// --- SEND TEXT BUTTON (MODIFIED) ---
 document.getElementById("sendBtn").onclick=async()=>{
   const text=messageInput.value.trim();
   if(!text||!currentChatId) return;
@@ -943,7 +1081,7 @@ document.getElementById("sendBtn").onclick=async()=>{
   
   const messageTime = Date.now(); 
   
-  await push(ref(db,"chats/"+currentChatId+"/messages"),{
+  await push(dbRef(db,"chats/"+currentChatId+"/messages"),{
     sender:currentUser.uid,
     text,
     replyTo,
@@ -951,25 +1089,8 @@ document.getElementById("sendBtn").onclick=async()=>{
   });
   
   // Update lastMessageTime and lastMessageText for ALL chat members
-  const chatSnap = await get(ref(db, "chats/" + currentChatId));
-  const chat = chatSnap.val();
-  let memberUids = [];
-  if (chat.members) {
-    memberUids = Array.isArray(chat.members) ? chat.members : Object.keys(chat.members);
-  }
-
-  const userChatUpdates = {};
   const messageSnippet = text.length > 50 ? text.slice(0, 50) + '...' : text;
-  
-  memberUids.forEach(uid => {
-    if (uid !== currentUser.uid) {
-      userChatUpdates[`/userChats/${uid}/${currentChatId}/unread`] = true;
-    }
-    userChatUpdates[`/userChats/${uid}/${currentChatId}/lastMessageTime`] = messageTime;
-    userChatUpdates[`/userChats/${uid}/${currentChatId}/lastMessageText`] = messageSnippet;
-  });
-
-  await update(ref(db), userChatUpdates);
+  await updateChatList(messageTime, messageSnippet);
   
   messageInput.value="";
   replyTo=null;
@@ -1001,9 +1122,9 @@ document.getElementById("logoutBtn").onclick=async()=>{
   show(loginScreen);
 };
 
-// --- HELPER FUNCTION TO FIND USER BY USERNAME (Full database scan) ---
+// --- HELPER FUNCTION TO FIND USER BY USERNAME (UNCHANGED) ---
 async function findUserByUsername(username) {
-  const usersRef = ref(db, 'users');
+  const usersRef = dbRef(db, 'users');
   const snap = await get(usersRef);
   
   if (!snap.exists()) return null;
@@ -1022,7 +1143,7 @@ async function findUserByUsername(username) {
   return result;
 }
 
-// --- NEW DM BUTTON LOGIC ---
+// --- DM/GROUP LOGIC (UNCHANGED) ---
 document.getElementById("newDmBtn").onclick=async()=>{
   const username=prompt("Enter the username of the person you want to chat with:");
   if(!username) return;
@@ -1042,7 +1163,7 @@ document.getElementById("newDmBtn").onclick=async()=>{
 
   try {
     // 1. Check if a DM with this user already exists in userChats
-    const userChatsSnap = await get(ref(db, `userChats/${currentUser.uid}`));
+    const userChatsSnap = await get(dbRef(db, `userChats/${currentUser.uid}`));
     let existingChatId = null;
 
     if (userChatsSnap.exists()) {
@@ -1064,7 +1185,7 @@ document.getElementById("newDmBtn").onclick=async()=>{
     }
 
     // 2. DM does not exist, create it 
-    const refNew = push(ref(db, "chats"));
+    const refNew = push(dbRef(db, "chats"));
     const newMembersMap = { [currentUser.uid]: true, [otherUid]: true };
     const creationTime = Date.now(); 
     
@@ -1074,10 +1195,10 @@ document.getElementById("newDmBtn").onclick=async()=>{
       members: newMembersMap
     });
     
-    const currentUserProfileSnap = await get(ref(db, "users/" + currentUser.uid));
+    const currentUserProfileSnap = await get(dbRef(db, "users/" + currentUser.uid));
     const currentUsername = currentUserProfileSnap.val() ? currentUserProfileSnap.val().username : "You";
 
-    await update(ref(db), {
+    await update(dbRef(db), {
       // Current User's side (You)
       [`/userChats/${currentUser.uid}/${refNew.key}`]: { 
           name: otherUsername, 
@@ -1107,7 +1228,6 @@ document.getElementById("newDmBtn").onclick=async()=>{
 };
 
 
-// --- GROUP BUTTON (Still works using the findUserByUsername helper) ---
 document.getElementById("groupBtn").onclick=async()=>{
   const name=prompt("Group name:");
   if(!name)return;
@@ -1135,7 +1255,7 @@ document.getElementById("groupBtn").onclick=async()=>{
       return map;
   }, {});
 
-  const refNew=push(ref(db,"chats"));
+  const refNew=push(dbRef(db,"chats"));
   await set(refNew,{
     name,
     isGroup:true,
@@ -1152,12 +1272,12 @@ document.getElementById("groupBtn").onclick=async()=>{
         lastMessageText: "Group created"
     };
   });
-  await update(ref(db), userChatUpdates);
+  await update(dbRef(db), userChatUpdates);
 
   loadChats();
 };
 
-// --- NEW GROUP SETTINGS LOGIC ---
+// --- GROUP SETTINGS LOGIC (UNCHANGED) ---
 
 // Toggle visibility of the settings menu
 settingsBtn.onclick = () => {
@@ -1184,10 +1304,10 @@ document.getElementById('renameGroupBtn').onclick = async () => {
 
     try {
         // 1. Update the chat name in the main /chats node
-        await update(ref(db, `chats/${currentChatId}`), { name: newName });
+        await update(dbRef(db, `chats/${currentChatId}`), { name: newName });
 
         // 2. Get current members to update their userChats node
-        const chatSnap = await get(ref(db, `chats/${currentChatId}`));
+        const chatSnap = await get(dbRef(db, `chats/${currentChatId}`));
         const chat = chatSnap.val();
         let memberUids = Object.keys(chat.members || {});
         
@@ -1196,7 +1316,7 @@ document.getElementById('renameGroupBtn').onclick = async () => {
             userChatUpdates[`/userChats/${uid}/${currentChatId}/name`] = newName;
         });
 
-        await update(ref(db), userChatUpdates);
+        await update(dbRef(db), userChatUpdates);
         
         alert(`Group renamed to "${newName}" successfully!`);
         openChat(currentChatId, newName); // Re-open chat to update header
@@ -1216,7 +1336,7 @@ document.getElementById('addMembersBtn').onclick = async () => {
     if (usernames.length === 0) return;
 
     try {
-        const chatSnap = await get(ref(db, `chats/${currentChatId}`));
+        const chatSnap = await get(dbRef(db, `chats/${currentChatId}`));
         const chat = chatSnap.val();
         let currentMembersMap = chat.members || {};
         let membersUpdated = false;
@@ -1248,10 +1368,10 @@ document.getElementById('addMembersBtn').onclick = async () => {
 
         if (membersUpdated) {
             // 1. Update the main /chats members list
-            await update(ref(db, `chats/${currentChatId}`), { members: currentMembersMap });
+            await update(dbRef(db, `chats/${currentChatId}`), { members: currentMembersMap });
 
             // 2. Update all affected userChats nodes
-            await update(ref(db), userChatUpdates);
+            await update(dbRef(db), userChatUpdates);
             
             alert(`Added new members: ${newMembers.join(', ')}`);
             openChat(currentChatId, groupName); // Re-open chat
@@ -1266,9 +1386,9 @@ document.getElementById('addMembersBtn').onclick = async () => {
 };
 
 
-// --- LISTEN FOR UNREAD ---
+// --- LISTEN FOR UNREAD (UNCHANGED) ---
 function listenForUnread(){
-  const userChatsRef = ref(db,"userChats/"+currentUser.uid);
+  const userChatsRef = dbRef(db,"userChats/"+currentUser.uid);
   onValue(userChatsRef,snap=>{
     if(!snap.exists()) return;
     snap.forEach(child=>{
@@ -1282,7 +1402,7 @@ function listenForUnread(){
     });
   });
 
-  onValue(ref(db,"chats"), snap => {
+  onValue(dbRef(db,"chats"), snap => {
     if(!snap.exists()) return;
     snap.forEach(chatSnap => {
       const chatId = chatSnap.key;
@@ -1302,34 +1422,34 @@ function listenForUnread(){
       if(activeMessageListeners.has(chatId)) return;
       activeMessageListeners.add(chatId);
 
-      const msgRef = ref(db,"chats/"+chatId+"/messages");
+      const msgRef = dbRef(db,"chats/"+chatId+"/messages");
       onChildAdded(msgRef, msgSnap => {
         const m = msgSnap.val();
 
         if(!m || !m.sender || m.sender === currentUser.uid) {
            return;
         }
-
-        const messageSnippet = m.text.length > 50 ? m.text.slice(0, 50) + '...' : m.text;
+        
+        const messageSnippet = m.imageUrl ? "Image" : (m.text.length > 50 ? m.text.slice(0, 50) + '...' : m.text);
 
         // Update last message time and text
-        update(ref(db, `/userChats/${currentUser.uid}/${chatId}`), {
+        update(dbRef(db, `/userChats/${currentUser.uid}/${chatId}`), {
              lastMessageTime: m.time,
              lastMessageText: messageSnippet
         }).catch(()=>{});
 
-        get(ref(db,"userChats/"+currentUser.uid+"/"+chatId)).then(userChatSnap=>{
+        get(dbRef(db,"userChats/"+currentUser.uid+"/"+chatId)).then(userChatSnap=>{
           const data = userChatSnap.val() || {};
           const lastRead = data.lastRead || 0;
 
           if(m.time > lastRead && currentChatId !== chatId){
-            update(ref(db,"userChats/"+currentUser.uid+"/"+chatId),{ unread:true });
+            update(dbRef(db,"userChats/"+currentUser.uid+"/"+chatId),{ unread:true });
             
             loadChats(); 
 
             const chatDiv = [...chatList.children].find(d => d.dataset.id === chatId);
             const title = chatDiv ? chatDiv.querySelector('div:first-child').firstChild.textContent.trim() : "New message";
-            showNotification(title, m.text, chatId);
+            showNotification(title, m.text || "Image", chatId);
 
           }
         }).catch(()=>{});
@@ -1338,7 +1458,7 @@ function listenForUnread(){
   });
 }
 
-// service worker registration and permission
+// service worker registration and permission (UNCHANGED)
 if("serviceWorker" in navigator){
   navigator.serviceWorker.register("sw.js").then(()=> {
     if(Notification.permission !== "granted" && Notification.permission !== "denied"){
