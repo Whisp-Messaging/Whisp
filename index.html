@@ -114,10 +114,10 @@
       margin-top: 2px;
   }
 
-  /* Bottom Menu (Now without the Find User button) */
+  /* Bottom Menu (Now with two or three buttons) */
   #bottomMenu {
     display: flex;
-    justify-content: space-around;
+    justify-content: space-around; /* Distribute space evenly */
     align-items: center;
     position: fixed;
     bottom: 0;
@@ -139,10 +139,6 @@
     transition: background 0.3s;
   }
   #bottomMenu button:hover { background: #0056b3; }
-  
-  /* Center the remaining two buttons */
-  #bottomMenu #groupBtn { margin-right: 10px; }
-  #bottomMenu #logoutBtn { margin-left: 10px; }
   
   /* --- 3. CHAT SCREEN --- */
   #chatScreen { background: #121212; }
@@ -365,7 +361,7 @@
     <div id="chatListHeader">Whisp Chats</div>
     <div id="chatList"></div>
     <div id="bottomMenu">
-      <button id="groupBtn">New Group</button>
+      <button id="newDmBtn">New DM</button> <button id="groupBtn">New Group</button>
       <button id="logoutBtn">Logout</button>
     </div>
   </section>
@@ -415,7 +411,6 @@ const db = getDatabase(app);
 const loginScreen=document.getElementById("loginScreen"),
       chatListScreen=document.getElementById("chatListScreen"),
       chatScreen=document.getElementById("chatScreen"),
-      // searchScreen removed
       chatList=document.getElementById("chatList"),
       messagesDiv=document.getElementById("messages"),
       replyBar=document.getElementById("replyBar"),
@@ -424,7 +419,6 @@ const loginScreen=document.getElementById("loginScreen"),
       messageInput=document.getElementById("message"),
       typingIndicator=document.getElementById("typingIndicator"),
       chatStatus=document.getElementById("chatStatus");
-      // searchUserInput and searchResultsDiv removed
 
 let currentUser=null, currentChatId=null, replyTo=null, currentListenerRef=null, otherUserUid=null; 
 let currentChatIsGroup=false, chatMembers={};
@@ -432,7 +426,6 @@ let typingTimer=null, typingStatusRef=null;
 
 let activeMessageListeners = new Set();
 
-// Updated 'show' function to exclude the search screen
 const show=(s)=>{[loginScreen,chatListScreen,chatScreen].forEach(e=>e.classList.remove("active"));s.classList.add("active");}; 
 
 // --- PRESENCE HANDLERS ---
@@ -529,7 +522,6 @@ onAuthStateChanged(auth, async user => {
     goOnline(); 
     show(chatListScreen);
     listenForUnread();
-    // fetchAllUsers removed
   } else {
     currentUser=null;
     activeMessageListeners.forEach(chatId => {
@@ -954,7 +946,7 @@ document.getElementById("logoutBtn").onclick=async()=>{
   show(loginScreen);
 };
 
-// --- HELPER FUNCTION TO FIND USER BY USERNAME (Full database scan for registration) ---
+// --- HELPER FUNCTION TO FIND USER BY USERNAME (Full database scan) ---
 async function findUserByUsername(username) {
   const usersRef = ref(db, 'users');
   const snap = await get(usersRef);
@@ -974,6 +966,91 @@ async function findUserByUsername(username) {
   }
   return result;
 }
+
+// --- NEW DM BUTTON LOGIC ---
+document.getElementById("newDmBtn").onclick=async()=>{
+  const username=prompt("Enter the username of the person you want to chat with:");
+  if(!username) return;
+
+  const user = await findUserByUsername(username);
+
+  if (!user) {
+    return alert(`User with username "${username}" not found.`);
+  }
+  
+  if (user.uid === currentUser.uid) {
+    return alert("You can't start a DM with yourself.");
+  }
+  
+  const otherUid = user.uid;
+  const otherUsername = user.username;
+
+  try {
+    // 1. Check if a DM with this user already exists in userChats
+    const userChatsSnap = await get(ref(db, `userChats/${currentUser.uid}`));
+    let existingChatId = null;
+
+    if (userChatsSnap.exists()) {
+        userChatsSnap.forEach(chatChild => {
+            const chatData = chatChild.val();
+            // Checking both otherUid and that it's a DM (isGroup: false)
+            if (chatData.otherUid === otherUid && chatData.isGroup === false) {
+                existingChatId = chatChild.key;
+            }
+        });
+    }
+
+    if (existingChatId) {
+        // Chat exists, navigate to it
+        show(chatListScreen);
+        await loadChats();
+        openChat(existingChatId, otherUsername);
+        return;
+    }
+
+    // 2. DM does not exist, create it 
+    const refNew = push(ref(db, "chats"));
+    const newMembersMap = { [currentUser.uid]: true, [otherUid]: true };
+    const creationTime = Date.now(); 
+    
+    await set(refNew, {
+      name: otherUsername, 
+      isGroup: false,
+      members: newMembersMap
+    });
+    
+    const currentUserProfileSnap = await get(ref(db, "users/" + currentUser.uid));
+    const currentUsername = currentUserProfileSnap.val() ? currentUserProfileSnap.val().username : "You";
+
+    await update(ref(db), {
+      // Current User's side (You)
+      [`/userChats/${currentUser.uid}/${refNew.key}`]: { 
+          name: otherUsername, 
+          isGroup: false,
+          lastMessageTime: creationTime,
+          otherUid: otherUid,
+          lastMessageText: "DM created"
+      }, 
+      // Other User's side
+      [`/userChats/${otherUid}/${refNew.key}`]: { 
+          name: currentUsername, 
+          isGroup: false,
+          lastMessageTime: creationTime,
+          otherUid: currentUser.uid,
+          lastMessageText: "DM created"
+      } 
+    });
+
+    // 3. Navigate to the new chat
+    show(chatListScreen);
+    await loadChats();
+    openChat(refNew.key, otherUsername);
+
+  } catch (e) {
+    alert("Error creating DM: " + e.message);
+  }
+};
+
 
 // --- GROUP BUTTON (Still works using the findUserByUsername helper) ---
 document.getElementById("groupBtn").onclick=async()=>{
