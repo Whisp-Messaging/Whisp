@@ -1,430 +1,3 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Whisp Messenger</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<style>
-  /* --- GLOBAL & BASE STYLES --- */
-  :root {
-    --color-bg-dark: #0A0A0A;
-    --color-bg-mid: #141414;
-    --color-bg-light: #1F1F1F;
-    --color-text-primary: #EAEAEA;
-    --color-text-secondary: #999999;
-    --color-accent-blue: #007AFF; /* iOS-inspired blue */
-    --color-accent-green: #34C759; /* Online status */
-    --color-accent-typing: #5AC8FA;
-    --color-border: #2C2C2E;
-  }
-  
-  html, body {
-    margin: 0;
-    padding: 0;
-    height: 100%;
-    background: var(--color-bg-dark);
-    color: var(--color-text-primary);
-    font-family: 'Inter', sans-serif;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-  }
-  main {
-    height: 100%;
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-    background: var(--color-bg-mid);
-    max-width: 600px; /* Center chat view on larger screens */
-    margin: 0 auto;
-    box-shadow: 0 0 30px rgba(0, 0, 0, 0.5);
-  }
-
-  .screen { 
-    display: none; 
-    flex-direction: column; 
-    height: 100%; 
-  }
-  .screen.active { 
-    display: flex; 
-  }
-  
-  /* --- 1. LOGIN SCREEN --- */
-  #loginScreen {
-    justify-content: center;
-    align-items: center;
-    background: var(--color-bg-mid);
-  }
-  #loginScreen h2 { 
-    font-size: 2.5rem; 
-    margin-bottom: 30px; 
-    color: var(--color-accent-blue); 
-    font-weight: 700;
-  }
-  #loginScreen input {
-    display: block;
-    width: 90%;
-    max-width: 350px; 
-    margin: 15px auto;
-    padding: 16px;
-    border-radius: 12px; 
-    border: 1px solid var(--color-border);
-    background: var(--color-bg-light);
-    color: var(--color-text-primary);
-    font-size: 1.1rem;
-    box-shadow: inset 0 1px 3px rgba(0,0,0,0.2);
-  }
-  #loginBtn {
-    background: var(--color-accent-blue);
-    color: white;
-    border: none;
-    padding: 14px 40px;
-    border-radius: 12px;
-    cursor: pointer;
-    font-weight: 600;
-    font-size: 1.2rem;
-    transition: background 0.3s, transform 0.1s;
-    margin-top: 25px;
-  }
-  #loginBtn:hover { background: #005bb8; }
-  #loginBtn:active { transform: scale(0.98); }
-
-  /* --- 2. CHAT LIST SCREEN --- */
-  #chatListScreen { background: var(--color-bg-mid); flex: 1; }
-  #chatListHeader {
-    background: var(--color-bg-mid);
-    color: var(--color-text-primary);
-    padding: 16px 20px;
-    font-weight: 700;
-    border-bottom: 1px solid var(--color-border);
-    font-size: 1.4rem;
-  }
-  #chatList { 
-    flex: 1; 
-    overflow-y: auto; 
-    padding: 0; /* Remove top padding */
-    padding-bottom: 70px; 
-  }
-  .chatItem {
-    padding: 15px 20px; 
-    border-bottom: 1px solid var(--color-border);
-    cursor: pointer;
-    transition: background 0.2s;
-    font-size: 1.1rem; 
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-  .chatItem:hover { background: var(--color-bg-light); }
-  .chatItem.unread {
-    font-weight: 600;
-    background: #1A1A2A; 
-    border-left: 4px solid var(--color-accent-blue);
-    padding-left: 16px;
-  }
-  .chatItem .lastMessage {
-      font-size: 0.9rem;
-      color: var(--color-text-secondary);
-      max-width: 90%;
-      overflow: hidden;
-      white-space: nowrap;
-      text-overflow: ellipsis;
-      margin-top: 4px;
-  }
-
-  /* Bottom Menu */
-  #bottomMenu {
-    display: flex;
-    justify-content: space-around; 
-    align-items: center;
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    width: 100%;
-    background: var(--color-bg-mid);
-    padding: 10px 0; 
-    border-top: 1px solid var(--color-border);
-    z-index: 10;
-    max-width: 600px;
-    transform: translateX(0);
-    left: 50%;
-    transform: translateX(-50%);
-  }
-  #bottomMenu button {
-    background: var(--color-accent-blue);
-    color: white;
-    border: none;
-    padding: 8px 16px; 
-    border-radius: 8px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: background 0.3s;
-    font-size: 0.95rem;
-  }
-  #bottomMenu button:hover { background: #005bb8; }
-  
-  /* --- 3. CHAT SCREEN --- */
-  #chatScreen { background: var(--color-bg-dark); position: relative; } 
-  #chatHeader {
-    background: var(--color-bg-mid);
-    color: var(--color-text-primary);
-    padding: 10px 10px; 
-    display: flex;
-    flex-direction: column; 
-    border-bottom: 1px solid var(--color-border);
-    box-shadow: 0 1px 5px rgba(0,0,0,0.3);
-  }
-  #chatHeader button { 
-    background: none; 
-    border: none; 
-    color: var(--color-accent-blue); 
-    font-size: 1.5rem; 
-    cursor: pointer; 
-    padding: 0 5px; 
-    transition: color 0.2s;
-  }
-  #chatHeader button:hover { color: #5AC8FA; }
-  
-  #chatHeader div.main-row { 
-    width: 100%; 
-    display: flex; 
-    align-items: center; 
-    justify-content: space-between; 
-  }
-  #chatNameContainer { 
-    display: flex; 
-    flex-direction: column; 
-    align-items: flex-start; 
-    flex-grow: 1;
-    margin-left: 10px;
-  }
-  #chatName { 
-    font-size: 1.2rem; 
-    font-weight: 600; 
-  }
-
-  /* Status Styles */
-  #chatStatus { 
-    font-size: 0.8rem; 
-    color: var(--color-text-secondary); 
-    height: 16px; 
-    font-weight: 400;
-  }
-  #chatStatus.online { 
-    color: var(--color-accent-green); 
-    font-weight: 500;
-  } 
-
-  /* Typing Indicator Style */
-  #typingIndicator { 
-    font-size: 0.85rem; 
-    color: var(--color-accent-typing); 
-    font-style: italic;
-    height: 20px; 
-    text-align: left;
-    padding: 3px 0 0 50px; 
-    width: 100%;
-    overflow: hidden;
-  }
-  
-  #messages { 
-    flex: 1; 
-    overflow-y: auto; 
-    padding: 10px 15px; 
-    display: flex; 
-    flex-direction: column; 
-    gap: 8px;
-  }
-  .msg {
-    max-width: 85%; 
-    padding: 12px 16px; 
-    border-radius: 18px; 
-    position: relative;
-    word-wrap: break-word;
-    line-height: 1.4;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
-  }
-  .me {
-    align-self: flex-end;
-    background: var(--color-accent-blue); 
-    color: white;
-    border-bottom-right-radius: 6px;
-  }
-  .them {
-    align-self: flex-start;
-    background: var(--color-bg-light); 
-    color: var(--color-text-primary);
-    border-bottom-left-radius: 6px;
-  }
-
-  .timestamp { 
-    font-size: 0.7rem; 
-    color: rgba(255,255,255,0.7); 
-    text-align: right; 
-    margin-top: 4px; 
-    display: block;
-    opacity: 0.8;
-  }
-  .them .timestamp {
-    color: rgba(224,224,224,0.7);
-  }
-  .sender { 
-    font-size: 0.9rem; 
-    color: var(--color-accent-typing); 
-    font-weight: 600; 
-    margin-bottom: 4px; 
-  }
-  .msg a { color: inherit; text-decoration: underline; }
-
-
-  /* Reply Bar */
-  #replyBar {
-    display: none;
-    background: var(--color-bg-light);
-    padding: 8px 15px; 
-    border-left: 4px solid var(--color-accent-blue);
-    font-size: 0.95rem;
-    align-items: center;
-    display: flex;
-    justify-content: space-between;
-    color: var(--color-text-secondary);
-  }
-  #replyText { flex: 1; color: var(--color-text-primary); }
-  #cancelReply { 
-    background: none; 
-    border: none; 
-    color: var(--color-accent-blue); 
-    font-weight: bold; 
-    cursor: pointer; 
-    margin-left: 10px; 
-    font-size: 1.2rem;
-  }
-
-  #inputBar {
-    display: flex;
-    align-items: flex-end; 
-    background: var(--color-bg-mid);
-    padding: 10px 15px; 
-    border-top: 1px solid var(--color-border);
-  }
-
-  #message {
-    flex: 1;
-    padding: 12px 18px; 
-    border-radius: 24px;
-    border: none;
-    background: var(--color-bg-light);
-    color: var(--color-text-primary);
-    outline: none;
-    font-size: 1rem;
-    resize: none;
-    max-height: 100px; 
-    overflow-y: auto;
-    box-shadow: inset 0 1px 3px rgba(0,0,0,0.2);
-  }
-  #sendBtn {
-    background: var(--color-accent-blue);
-    color: white;
-    border: none;
-    border-radius: 50%;
-    width: 48px; 
-    height: 48px; 
-    margin-left: 10px;
-    font-size: 1.5rem;
-    cursor: pointer;
-    transition: background 0.3s, transform 0.1s;
-  }
-  #sendBtn:hover { background: #005bb8; }
-  #sendBtn:active { transform: scale(0.95); }
-
-  /* Group Settings Menu Style */
-  #settingsBtn {
-    margin-left: 10px;
-    font-size: 1.3rem !important;
-    display: none; 
-  }
-
-  #groupSettingsMenu {
-    position: absolute;
-    top: 65px; 
-    right: 15px;
-    background: var(--color-bg-light);
-    border: 1px solid var(--color-border);
-    border-radius: 10px;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
-    z-index: 20;
-    overflow: hidden;
-    display: none;
-  }
-  #groupSettingsMenu button {
-    display: block;
-    width: 100%;
-    text-align: left;
-    padding: 12px 20px;
-    background: none;
-    border: none;
-    color: var(--color-text-primary);
-    cursor: pointer;
-    font-size: 1rem;
-    transition: background 0.2s;
-  }
-  #groupSettingsMenu button:hover {
-    background: #2A2A2A;
-  }
-</style>
-</head>
-<body>
-<main>
-  <section id="loginScreen" class="screen active">
-    <div>
-      <h2>Welcome to Whisp 💬</h2>
-      <input id="email" placeholder="Email" />
-      <input id="password" type="password" placeholder="Password" />
-      <input id="username" placeholder="Username (for signup)" />
-      <button id="loginBtn">Login / Register</button>
-    </div>
-  </section>
-
-  <section id="chatListScreen" class="screen">
-    <div id="chatListHeader">Whisp Chats</div>
-    <div id="chatList"></div>
-    <div id="bottomMenu">
-      <button id="newDmBtn">New DM</button> 
-      <button id="groupBtn">New Group</button>
-      <button id="logoutBtn">Logout</button>
-    </div>
-  </section>
-  
-  <section id="chatScreen" class="screen">
-    <div id="chatHeader">
-      <div class="main-row">
-        <button id="backBtn">←</button>
-        <div id="chatNameContainer">
-            <span id="chatName">Chat</span>
-            <span id="chatStatus"></span>
-        </div>
-        <button id="settingsBtn" style="display: none;">⋮</button>
-      </div>
-      <div id="typingIndicator"></div>
-    </div>
-    
-    <div id="groupSettingsMenu">
-        <button id="renameGroupBtn">Rename Group</button>
-        <button id="addMembersBtn">Add Members</button>
-    </div>
-
-    <div id="messages"></div>
-    <div id="replyBar">
-      <span id="replyText"></span>
-      <button id="cancelReply">✖</button>
-    </div>
-    <div id="inputBar">
-      <textarea id="message" placeholder="Type a message..."></textarea>
-      <button id="sendBtn">➤</button>
-    </div>
-  </section>
-</main>
-
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
@@ -444,6 +17,7 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getDatabase(app);
 
+// --- DOM ELEMENTS ---
 const loginScreen=document.getElementById("loginScreen"),
       chatListScreen=document.getElementById("chatListScreen"),
       chatScreen=document.getElementById("chatScreen"),
@@ -456,7 +30,11 @@ const loginScreen=document.getElementById("loginScreen"),
       typingIndicator=document.getElementById("typingIndicator"),
       chatStatus=document.getElementById("chatStatus"),
       settingsBtn = document.getElementById("settingsBtn"),
-      groupSettingsMenu = document.getElementById("groupSettingsMenu");
+      groupSettingsMenu = document.getElementById("groupSettingsMenu"),
+      backBtn = document.getElementById("backBtn"),             // Added for clarity
+      renameGroupBtn = document.getElementById("renameGroupBtn"), // Added for clarity
+      addMembersBtn = document.getElementById("addMembersBtn");   // Added for clarity
+// --------------------
 
 let currentUser=null, currentChatId=null, replyTo=null, currentListenerRef=null, otherUserUid=null; 
 let currentChatIsGroup=false, chatMembers={};
@@ -466,7 +44,7 @@ let activeMessageListeners = new Set();
 
 const show=(s)=>{[loginScreen,chatListScreen,chatScreen].forEach(e=>e.classList.remove("active"));s.classList.add("active");}; 
 
-// --- PRESENCE HANDLERS ---
+// --- PRESENCE HANDLERS (Omitted for brevity, assumed unchanged) ---
 
 function formatLastSeen(timestamp) {
     if (!timestamp) return "";
@@ -500,7 +78,7 @@ async function goOffline() {
     await set(isOnlineRef, Date.now());
 }
 
-// --- LOGIN HANDLER ---
+// --- LOGIN HANDLER (Omitted for brevity, assumed unchanged) ---
 document.getElementById("loginBtn").onclick = async () => {
   const emailVal = document.getElementById("email").value.trim();
   const passwordVal = document.getElementById("password").value.trim();
@@ -570,7 +148,8 @@ onAuthStateChanged(auth, async user => {
   }
 });
 
-// --- LOAD CHATS ---
+
+// --- LOAD CHATS (Omitted for brevity, assumed unchanged) ---
 async function loadChats(){
   chatList.innerHTML="";
   
@@ -693,7 +272,7 @@ async function loadChats(){
   await Promise.all(correctionPromises).catch(e => console.error("Error during chat name correction:", e));
 }
 
-// --- TYPING INDICATOR HANDLERS ---
+// --- TYPING INDICATOR HANDLERS (Omitted for brevity, assumed unchanged) ---
 function startTyping(){
     if(!currentChatId || !currentUser) return;
     if(typingTimer) clearTimeout(typingTimer);
@@ -710,7 +289,7 @@ function stopTyping(){
     typingStatusRef = null;
 }
 
-// --- OPEN CHAT ---
+// --- OPEN CHAT (Omitted for brevity, assumed unchanged) ---
 async function openChat(id,name){
   stopTyping(); 
   
@@ -872,7 +451,7 @@ async function openChat(id,name){
   onChildAdded(msgRef,s=>renderMessage(s.val()));
 }
 
-// --- RENDER MESSAGE ---
+// --- RENDER MESSAGE (Omitted for brevity, assumed unchanged) ---
 function renderMessage(m){
   const div=document.createElement("div");
   div.classList.add("msg",m.sender===currentUser.uid?"me":"them");
@@ -946,6 +525,7 @@ function showReplyBar(text){
   replyText.textContent="Replying to: "+text.slice(0,40);
 }
 
+// FIX: Attach handler using the predefined constant
 cancelReplyBtn.onclick=()=>{
   replyTo=null;
   replyBar.style.display="none";
@@ -954,7 +534,7 @@ cancelReplyBtn.onclick=()=>{
 messageInput.addEventListener('input', startTyping);
 messageInput.onkeydown = () => { startTyping(); }; 
 
-// --- SHARED CHAT LIST UPDATE LOGIC ---
+// --- SHARED CHAT LIST UPDATE LOGIC (Omitted for brevity, assumed unchanged) ---
 async function updateChatList(messageTime, messageSnippet) {
     const chatSnap = await get(dbRef(db, "chats/" + currentChatId));
     const chat = chatSnap.val();
@@ -976,7 +556,7 @@ async function updateChatList(messageTime, messageSnippet) {
 }
 
 
-// --- SEND TEXT BUTTON ---
+// --- SEND TEXT BUTTON (Omitted for brevity, assumed unchanged) ---
 document.getElementById("sendBtn").onclick=async()=>{
   const text=messageInput.value.trim();
   if(!text||!currentChatId) return;
@@ -1003,8 +583,8 @@ document.getElementById("sendBtn").onclick=async()=>{
   loadChats(); 
 };
 
-// --- FIX: Ensure back button logic is wrapped in an event handler function ---
-document.getElementById("backBtn").onclick=()=>{
+// FIX: Use the predefined constant 'backBtn' and ensure cleanup
+backBtn.onclick=()=>{
   stopTyping();
   
   currentChatId=null;
@@ -1029,7 +609,7 @@ document.getElementById("logoutBtn").onclick=async()=>{
   show(loginScreen);
 };
 
-// --- HELPER FUNCTION TO FIND USER BY USERNAME ---
+// --- HELPER FUNCTION TO FIND USER BY USERNAME (Omitted for brevity, assumed unchanged) ---
 async function findUserByUsername(username) {
   const usersRef = dbRef(db, 'users');
   const snap = await get(usersRef);
@@ -1050,7 +630,7 @@ async function findUserByUsername(username) {
   return result;
 }
 
-// --- DM/GROUP LOGIC ---
+// --- DM/GROUP LOGIC (Omitted for brevity, assumed unchanged) ---
 document.getElementById("newDmBtn").onclick=async()=>{
   const username=prompt("Enter the username of the person you want to chat with:");
   if(!username) return;
@@ -1202,8 +782,8 @@ document.addEventListener('click', (e) => {
 });
 
 
-// FIX: Ensure rename button logic is correctly linked
-document.getElementById('renameGroupBtn').onclick = async () => {
+// FIX: Use the predefined constant 'renameGroupBtn'
+renameGroupBtn.onclick = async () => {
     if (!currentChatId || !currentChatIsGroup) return;
     groupSettingsMenu.style.display = 'none';
 
@@ -1235,8 +815,8 @@ document.getElementById('renameGroupBtn').onclick = async () => {
     }
 };
 
-// FIX: Ensure add members button logic is correctly linked
-document.getElementById('addMembersBtn').onclick = async () => {
+// FIX: Use the predefined constant 'addMembersBtn'
+addMembersBtn.onclick = async () => {
     if (!currentChatId || !currentChatIsGroup) return;
     groupSettingsMenu.style.display = 'none';
 
@@ -1295,7 +875,7 @@ document.getElementById('addMembersBtn').onclick = async () => {
 };
 
 
-// --- LISTEN FOR UNREAD ---
+// --- LISTEN FOR UNREAD (Omitted for brevity, assumed unchanged) ---
 function listenForUnread(){
   const userChatsRef = dbRef(db,"userChats/"+currentUser.uid);
   onValue(userChatsRef,snap=>{
@@ -1397,5 +977,3 @@ function showNotification(title, body, tag){
   }
 }
 </script>
-</body>
-</html>
