@@ -649,13 +649,25 @@ let currentTargetUid = null; // New variable to hold the UID of the user current
 // Updated show function to include all screens
 const show=(s)=>{[loginScreen,chatListScreen,chatScreen,profileScreen, adminScreen].forEach(e=>e.classList.remove("active"));s.classList.add("active");}; 
 
-// --- USER DISPLAY NAME HELPER ---
+// --- USER DISPLAY NAME HELPER (FIXED FOR OLD DATA) ---
 async function getUserDisplayName(uid) {
     const uSnap = await get(ref(db, "users/" + uid));
     if (uSnap.exists()) {
         const userData = uSnap.val();
-        // Prioritize fullName, fallback to username
-        return userData.fullName || userData.username || "Unknown User";
+        
+        // 1. Prioritize fullName
+        if (userData.fullName) return userData.fullName;
+        
+        // 2. Fallback to displayName (if set by a newer process)
+        if (userData.displayName) return userData.displayName;
+        
+        // 3. Fallback to username (which might be the old capitalized version, e.g., 'Em')
+        if (userData.username) return userData.username; 
+        
+        // 4. Final fallback (e.g., if only email exists)
+        if (userData.email) return userData.email.split('@')[0];
+
+        return "Unknown User";
     }
     return "Deleted User";
 }
@@ -720,11 +732,18 @@ document.getElementById("loginBtn").onclick = async () => {
       // --- UNIQUENESS CHECK ---
       // Query to check if the normalized username already exists
       const usersRef = ref(db, 'users');
-      const usernameQuery = query(usersRef, orderByChild('username'), equalTo(normalizedUsername));
-      const snap = await get(usernameQuery);
+      // Using range search for a robust check
+      const usersQuery = query(usersRef, orderByChild('username'), startAt(normalizedUsername), endAt(normalizedUsername + '\uf8ff'));
+      const snap = await get(usersQuery);
       
       if (snap.exists()) {
-        return alert(`The username "${finalUsername}" is already taken. Please choose another.`);
+        let isMatch = false;
+        snap.forEach(child => {
+            if (child.val().username.toLowerCase() === normalizedUsername) {
+                isMatch = true;
+            }
+        });
+        if (isMatch) return alert(`The username "${finalUsername}" is already taken. Please choose another.`);
       }
       // --- END UNIQUENESS CHECK ---
       
@@ -747,6 +766,7 @@ document.getElementById("loginBtn").onclick = async () => {
   }
 };
 
+// --- AUTH STATE CHANGED (FIXED FOR OLD ACCOUNTS) ---
 onAuthStateChanged(auth, async user => {
   if(user){
     currentUser=user;
@@ -754,10 +774,32 @@ onAuthStateChanged(auth, async user => {
     
     const uSnap = await get(ref(db, "users/" + user.uid));
     let currentUsername = "";
+    
+    // --- CRITICAL FIX FOR EXISTING ACCOUNTS: Ensure 'username' is present and normalized. ---
     if (uSnap.exists()) {
-        // Use the normalized username for the admin check
-        currentUsername = uSnap.val().username || ""; 
+        const userData = uSnap.val();
+        currentUsername = userData.username || ""; 
+        
+        if (!userData.username) {
+             // Use part of their email as a default username if none exists
+             const defaultUsername = user.email.split('@')[0].toLowerCase();
+             currentUsername = defaultUsername;
+             // Update the database immediately for correction
+             await update(ref(db, "users/" + user.uid), {
+                 username: defaultUsername // Normalized
+             });
+        }
+        
+    } else {
+        // Handle a user only in Auth, create basic /users node
+        const defaultUsername = user.email.split('@')[0].toLowerCase();
+        currentUsername = defaultUsername;
+        await set(ref(db, "users/" + user.uid), { 
+             username: defaultUsername, 
+             email: user.email 
+        });
     }
+    // --- END: CRITICAL FIX FOR EXISTING ACCOUNTS ---
 
     // NEW: Admin Check - Check if the logged-in user's username is 'admin' (case-insensitive due to normalization)
     isAdmin = currentUsername === "admin";
@@ -779,7 +821,7 @@ onAuthStateChanged(auth, async user => {
   }
 });
 
-// --- LOAD CHATS ---
+// --- LOAD CHATS (FIXED FOR OLD DMS) ---
 async function loadChats(){
   chatList.innerHTML="";
   
@@ -810,29 +852,40 @@ async function loadChats(){
           let chatName = data.name; 
           let isDM = data.isGroup === false;
           
-          if (!isDM && memberUids.length === 2 && chat.isGroup !== true) {
+          // CRITICAL FIX: Determine if it's a DM based on member count if 'isGroup' is not set
+          if (!data.isGroup && memberUids.length === 2) {
               isDM = true;
           }
+          
           let updateNeeded = false; 
 
-          // --- CRITICAL FIX: OVERRIDE DM NAME ---
+          // --- FIX: Logic to correctly find otherUid and set chatName for DMs ---
           let finalOtherUid = data.otherUid;
-          if (!finalOtherUid && isDM) {
-              finalOtherUid = memberUids.find(uid => uid !== currentUser.uid);
-          }
-
-          if (isDM && finalOtherUid) { 
-              const correctName = await getUserDisplayName(finalOtherUid);
-              chatName = correctName; 
-              
-              if (data.name !== correctName || !data.name || !data.otherUid) { 
-                  updateNeeded = true;    
+          
+          if (isDM) {
+              // 1. If otherUid is not in metadata, find it from the chat members
+              if (!finalOtherUid) {
+                  finalOtherUid = memberUids.find(uid => uid !== currentUser.uid);
+                  if (finalOtherUid) {
+                      updateNeeded = true; // Mark to correct the metadata
+                  }
               }
-              chatMembers[finalOtherUid] = chatName; 
-          } else if (isDM && !finalOtherUid) {
-              chatName = "DM Setup Error";
+              
+              // 2. If the otherUid is found, set the correct display name
+              if (finalOtherUid) { 
+                  const correctName = await getUserDisplayName(finalOtherUid);
+                  chatName = correctName; 
+                  
+                  // Mark to correct the name in the userChats metadata
+                  if (data.name !== correctName || !data.name) { 
+                      updateNeeded = true;    
+                  }
+                  chatMembers[finalOtherUid] = correctName; 
+              } else {
+                  chatName = "DM (User Missing)";
+              }
           }
-          // --- END CRITICAL FIX ---
+          // --- END FIX ---
           
           // --- Get Last Message Snippet ---
           let lastMessageText = data.lastMessageText || "No messages yet";
@@ -854,7 +907,8 @@ async function loadChats(){
               lastTime: data.lastMessageTime || 0,
               unread: data.unread,
               updateNeeded: updateNeeded,
-              lastMessageText: lastMessageText
+              lastMessageText: lastMessageText,
+              finalOtherUid: finalOtherUid // Pass this for metadata correction
           };
       });
       chatPromises.push(chatPromise);
@@ -880,10 +934,12 @@ async function loadChats(){
     div.onclick = () => openChat(item.id, item.name); 
     chatList.append(div);
     
-    // 4. Perform the correction if needed
+    // Perform the correction if needed
     if (item.updateNeeded) {
         const updateData = { name: item.name };
-        if (item.id.otherUid) updateData.otherUid = item.id.otherUid; // Only set if available
+        // Only correct otherUid if we actually found a valid one
+        if (item.finalOtherUid) updateData.otherUid = item.finalOtherUid; 
+        
         correctionPromises.push(
             update(ref(db, `/userChats/${currentUser.uid}/${item.id}`), updateData)
         );
@@ -1228,18 +1284,16 @@ document.getElementById("logoutBtn").onclick=async()=>{
   show(loginScreen);
 };
 
-// --- EXACT MATCH SEARCH (CORE LOGIC FOR ADMIN SEARCH) ---
-// --- EXACT MATCH SEARCH (CORE LOGIC FOR ADMIN SEARCH) ---
+// --- EXACT MATCH SEARCH (CORE LOGIC FOR ADMIN SEARCH - FIXED FOR OLD USERS) ---
 async function findUserByUsername(username) {
   const usersRef = ref(db, 'users');
-  // Normalize search input to lowercase, as all NEW users are stored this way
+  // Normalize search input to lowercase
   const searchNormalized = username.toLowerCase(); 
   
   // Create a search key slightly beyond the target string (e.g., 'em' -> 'em\uf8ff')
-  // This range search is what makes the query case-insensitive AND finds older users 
-  // that may have been stored with initial caps (like 'Em' or 'Admin').
   const endKey = searchNormalized + '\uf8ff'; 
   
+  // Query for users whose username STARTS with the normalized input
   const usersQuery = query(
       usersRef,
       orderByChild('username'),
@@ -1252,22 +1306,26 @@ async function findUserByUsername(username) {
   
   let result = null;
   
-  // Iterate through results to find an exact match (or the closest match)
-  // This step is important because the range search is broad.
+  // Iterate through results to find an exact match 
   snap.forEach(child => {
       const userData = child.val();
-      
-      // We look for a username that STARTS with the normalized search term.
+      // Use toLowerCase().startsWith() for case-insensitive matching that prioritizes the closest match
       if (userData.username.toLowerCase().startsWith(searchNormalized)) {
-          // Since the search is precise, the first result is usually correct.
-          // We prioritize the most exact match that starts with the search term.
-          result = { uid: child.key, ...userData };
-          return; // Return the first strong match found
+          // If the full username matches the search (e.g., 'em' searching for 'em'), return it.
+          if (userData.username.toLowerCase() === searchNormalized) {
+             result = { uid: child.key, ...userData };
+             return true; // Stop iterating
+          }
+          // Otherwise, just keep the first result that starts with the term (e.g., 'emily' searching for 'em')
+          if (!result) {
+            result = { uid: child.key, ...userData };
+          }
       }
   });
   
   return result;
 }
+
 // --- NEW DM BUTTON LOGIC ---
 document.getElementById("newDmBtn").onclick=async()=>{
   const inputUsername=prompt("Enter the username of the person you want to message:");
