@@ -289,20 +289,7 @@
   }
   .msg a { color: inherit; text-decoration: underline; }
 
-  /* --- NEW STYLES FOR READ/EDIT --- */
-  .read-status-icon {
-    font-size: 0.8rem; /* Slightly larger checkmark */
-    margin-left: 5px;
-    display: inline-block;
-    opacity: 0.9;
-    /* Default: Sent/Delivered (Gray) */
-    color: #ddd; 
-  }
-
-  .read-status-icon.read {
-    /* WhatsApp Blue for Read */
-    color: #00bfff; 
-  }
+  /* --- NEW STYLES FOR EDIT INDICATOR --- */
 
   .edit-indicator {
     font-size: 0.65rem;
@@ -1014,6 +1001,7 @@ function startTyping(){
 
     typingStatusRef = ref(db, "typing/" + currentChatId + "/" + currentUser.uid);
     set(typingStatusRef, Date.now()).catch(()=>{});
+    onDisconnect(typingStatusRef).remove().catch(()=>{}); // Added onDisconnect for reliability
     typingTimer = setTimeout(stopTyping, 2000);
 }
 
@@ -1024,7 +1012,7 @@ function stopTyping(){
     typingStatusRef = null;
 }
 
-// --- OPEN CHAT (Fixed Read Receipts Listener Initialization) ---
+// --- OPEN CHAT (Read receipt logic removed) ---
 async function openChat(id,name){
   stopTyping(); 
   
@@ -1039,10 +1027,6 @@ async function openChat(id,name){
   if (currentPresenceListener && oldOtherUserUid) {
     off(ref(db, 'presence/' + oldOtherUserUid), currentPresenceListener);
     currentPresenceListener = null;
-  }
-  if (currentMessageUpdateListener && oldOtherUserUid) { 
-      off(ref(db, `userChats/${oldOtherUserUid}/${oldChatId}`), currentMessageUpdateListener);
-      currentMessageUpdateListener = null;
   }
   
   // Reset/Set New Chat Context
@@ -1090,30 +1074,6 @@ async function openChat(id,name){
       }
     }
   }
-  
-  // --- Read Receipts Listener (FIXED) ---
-  if (otherUserUid && !currentChatIsGroup) {
-      const otherUserChatRef = ref(db, `userChats/${otherUserUid}/${id}`);
-      currentMessageUpdateListener = onValue(otherUserChatRef, (snapshot) => {
-          if (currentChatId !== id) return;
-          const otherChatData = snapshot.val();
-          
-          // Read lastRead, defaulting to 0 if the node or property doesn't exist. 0 is a valid time.
-          const lastRead = (otherChatData && typeof otherChatData.lastRead === 'number') ? otherChatData.lastRead : 0; 
-          
-          // Trigger a status update check on all messages
-          messagesDiv.querySelectorAll('.msg.me').forEach(msgDiv => {
-              const msgTime = parseInt(msgDiv.dataset.time, 10);
-              const msgId = msgDiv.dataset.id;
-              if (msgId && msgTime) {
-                  // lastRead is correctly passed, which can be 0.
-                  updateMessageStatus(msgId, msgTime, lastRead, otherUserUid);
-              }
-          });
-      });
-  }
-  // --- END Read Receipts Listener ---
-  
   
   // --- Presence Listener for DM Status (Unchanged) ---
   if (otherUserUid) {
@@ -1189,10 +1149,9 @@ async function openChat(id,name){
   // --- END Typing Indicator Listener ---
 
 
-  // mark messages as read and set lastRead
+  // Mark messages as read, removing lastRead update since it is not used for ticks anymore
   await update(ref(db,"userChats/"+currentUser.uid+"/"+id), {
     unread: false,
-    lastRead: Date.now()
   });
 
   if("serviceWorker" in navigator){
@@ -1230,29 +1189,14 @@ function editMessage(msgId, time, currentText) {
     }
 }
 
-// --- UPDATE MESSAGE STATUS (Fixed lastReadTime check) ---
-function updateMessageStatus(msgId, msgTime, lastReadTime, recipientUid) {
-    if (!msgId || !msgTime) return; // FIX: removed !lastReadTime check
-
-    const statusIcon = document.getElementById(`status-icon-${msgId}`);
-    // Only proceed if it's a message from 'me' and we have the icon
-    if (recipientUid && statusIcon) { 
-        // lastReadTime being >= msgTime means the recipient's "read" time is past the message's sent time
-        if (lastReadTime >= msgTime) { 
-            statusIcon.classList.add('read');
-        } else {
-            statusIcon.classList.remove('read');
-        }
-    }
-    
-    // Check if message was edited (listen for changes on the message node itself)
+// --- LISTEN FOR MESSAGE EDIT STATUS (Refactored from updateMessageStatus) ---
+function listenForEditStatus(msgId) {
     const messageRef = ref(db, `chats/${currentChatId}/messages/${msgId}`);
     onValue(messageRef, (snapshot) => {
         const messageData = snapshot.val();
         const msgDiv = document.getElementById(`msg-text-${msgId}`);
         if (messageData && msgDiv) {
             // Update text immediately if it has changed
-            // NOTE: We only update text if it's not a special type (like image)
             if (messageData.text !== msgDiv.textContent && !messageData.type) {
                  msgDiv.textContent = messageData.text; 
             }
@@ -1274,7 +1218,7 @@ function updateMessageStatus(msgId, msgTime, lastReadTime, recipientUid) {
     }, { onlyOnce: false }); 
 }
 
-// --- RENDER MESSAGE (Added Reply Display and Click-to-Reply Logic) ---
+// --- RENDER MESSAGE (Read receipt icons removed) ---
 function renderMessage(m, msgId){
   const isMe = m.sender === currentUser.uid;
   const div=document.createElement("div");
@@ -1321,7 +1265,6 @@ function renderMessage(m, msgId){
               <img src="${m.text}" alt="Shared Image" onclick="window.open('${m.text}', '_blank')" />
           </div>
           <span class="timestamp">
-              ${isMe ? `<span class="read-status-icon" id="status-icon-${msgId}">✓✓</span>` : ''}
               ${new Date(m.time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
           </span>
       `;
@@ -1337,7 +1280,6 @@ function renderMessage(m, msgId){
           ${senderLabel}
           <div id="msg-text-${msgId}">${m.text}${editIndicator}</div>
           <span class="timestamp">
-              ${isMe ? `<span class="read-status-icon" id="status-icon-${msgId}">✓✓</span>` : ''}
               ${new Date(m.time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
           </span>
       `;
@@ -1354,17 +1296,8 @@ function renderMessage(m, msgId){
   messagesDiv.appendChild(div);
   messagesDiv.scrollTop = messagesDiv.scrollHeight;
 
-  // Initial check for read status and set up listener for status updates
-  if (isMe && otherUserUid && !currentChatIsGroup) {
-      get(ref(db, `userChats/${otherUserUid}/${currentChatId}`)).then(snap => {
-          const otherChatData = snap.val();
-          const lastRead = (otherChatData && typeof otherChatData.lastRead === 'number') ? otherChatData.lastRead : 0;
-          updateMessageStatus(msgId, m.time, lastRead, otherUserUid);
-      });
-  } else {
-      // Set up the general update listener for the edit status
-      updateMessageStatus(msgId, m.time, 0, otherUserUid); 
-  }
+  // Set up the listener for the edit status
+  listenForEditStatus(msgId);
 }
 
 
@@ -1382,8 +1315,6 @@ document.getElementById("sendBtn").onclick=async()=>{
     replyTo:replyTo, // ReplyTo variable is used here
   };
   
-  // NOTE: removed the 'seen' array which is not required for the current simple read receipt check
-
   await push(ref(db,"chats/"+currentChatId+"/messages"),msg);
   messageInput.value="";
   replyTo=null;
@@ -1566,7 +1497,6 @@ document.getElementById("newDmBtn").onclick=async()=>{
     isGroup:false,
     otherUid:targetUid,
     lastMessageTime:Date.now(),
-    lastRead:Date.now()
   });
 
   // Set userChats entry for recipient
@@ -1599,7 +1529,6 @@ document.getElementById("groupBtn").onclick=async()=>{
     name:groupName.trim(),
     isGroup:true,
     lastMessageTime:Date.now(),
-    lastRead:Date.now()
   });
 
   loadChats();
