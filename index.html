@@ -645,6 +645,8 @@ let typingTimer=null, typingStatusRef=null, currentTypingListener = null, curren
 let isAdmin = false; 
 let activeMessageListeners = new Set();
 let currentTargetUid = null; 
+// NEW FLAG FOR USERNAME RACE CONDITION FIX
+let lastRegisteredUsername = null; 
 
 const show=(s)=>{[loginScreen,chatListScreen,chatScreen,profileScreen, adminScreen].forEach(e=>e.classList.remove("active"));s.classList.add("active");}; 
 
@@ -751,6 +753,9 @@ document.getElementById("loginBtn").onclick = async () => {
       
       const uid = cred.user.uid;
       
+      // *** FIX: Store username temporarily for onAuthStateChanged race condition check ***
+      lastRegisteredUsername = normalizedUsername;
+      
       // 4. Set user profile and add to /usernames for quick lookup
       await set(ref(db, "users/" + uid), { 
         username: normalizedUsername, 
@@ -759,13 +764,16 @@ document.getElementById("loginBtn").onclick = async () => {
       });
       // Add to /usernames node 
       await set(ref(db, "usernames/" + normalizedUsername), uid); 
+      
+      // Now that the DB write is finished, we can clear the flag.
+      lastRegisteredUsername = null;
     }
   } catch (e) {
     alert(e.message);
   }
 };
 
-// --- AUTH STATE CHANGED (FIXED FOR OLD ACCOUNTS) ---
+// --- AUTH STATE CHANGED (FIXED FOR OLD ACCOUNTS AND RACE CONDITION) ---
 onAuthStateChanged(auth, async user => {
   if(user){
     currentUser=user;
@@ -774,12 +782,13 @@ onAuthStateChanged(auth, async user => {
     const uSnap = await get(ref(db, "users/" + user.uid));
     let currentUsername = "";
     
-    // --- CRITICAL FIX FOR EXISTING ACCOUNTS: Ensure 'username' is present and normalized. ---
+    // --- CRITICAL FIX: Ensure 'username' is present and normalized. ---
     if (uSnap.exists()) {
         const userData = uSnap.val();
         currentUsername = userData.username || ""; 
         
         if (!userData.username) {
+             // Patch old incomplete profile
              const defaultUsername = user.email.split('@')[0].toLowerCase();
              currentUsername = defaultUsername;
              await update(ref(db, "users/" + user.uid), {
@@ -788,10 +797,23 @@ onAuthStateChanged(auth, async user => {
         }
         
     } else {
+        // *** FIX FOR RACE CONDITION: Profile is missing but user just registered. ***
         const defaultUsername = user.email.split('@')[0].toLowerCase();
-        currentUsername = defaultUsername;
+        let finalUsernameForDb = defaultUsername;
+        
+        // Prioritize the username the user just entered, if the flag is set.
+        if (lastRegisteredUsername) {
+             finalUsernameForDb = lastRegisteredUsername;
+             // Clear the flag immediately after priority use
+             lastRegisteredUsername = null; 
+        }
+
+        currentUsername = finalUsernameForDb;
+        
+        // Set the profile now using the correct username (chosen or default). 
+        // This ensures the profile exists for the session.
         await set(ref(db, "users/" + user.uid), { 
-             username: defaultUsername, 
+             username: finalUsernameForDb, 
              email: user.email 
         });
     }
