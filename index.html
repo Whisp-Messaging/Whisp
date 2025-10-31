@@ -388,7 +388,79 @@
       font-weight: 500;
       transition: background 0.3s;
   }
-  
+
+  /* --- 5. ADMIN SCREEN --- */
+  #adminScreen { background: #1e1e1e; flex: 1; }
+  #adminHeader {
+    background: #121212;
+    color: white;
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    border-bottom: 1px solid #333333;
+  }
+  #adminHeader button { 
+    background: none; 
+    border: none; 
+    color: white; 
+    font-size: 1.4rem; 
+    cursor: pointer; 
+    padding: 0 10px; 
+    transition: color 0.2s;
+  }
+  #adminHeader button:hover { color: #007bff; }
+
+  #adminSearch {
+    display: flex;
+    padding: 20px;
+    border-bottom: 1px solid #333;
+  }
+  #adminSearch input {
+      flex: 1;
+      padding: 10px;
+      border-radius: 6px;
+      border: none;
+      background: #333;
+      color: #fff;
+      margin-right: 10px;
+  }
+  #adminSearch button {
+      background: #00aaff;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 6px;
+      cursor: pointer;
+  }
+  #adminResults {
+      padding: 20px;
+      flex: 1;
+      overflow-y: auto;
+  }
+  #userInfo {
+      margin-bottom: 20px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid #333;
+  }
+  #userInfo strong {
+      color: #007bff;
+      font-weight: 500;
+  }
+  .audit-item {
+      padding: 10px;
+      border: 1px solid #333;
+      border-radius: 6px;
+      margin-top: 10px;
+      background: #2a2a2a;
+      font-size: 0.9rem;
+  }
+  .audit-item strong {
+      display: block;
+      color: #00ff8c;
+      margin-bottom: 5px;
+  }
+
+
   /* --- MEDIA QUERY: DESKTOP/TABLET OPTIMIZATION --- */
   @media (min-width: 700px) {
     /* Main container is now full screen on desktop/tablet */
@@ -443,7 +515,8 @@
     <div id="bottomMenu">
       <button id="newDmBtn">New DM</button> 
       <button id="groupBtn">New Group</button>
-      <button id="profileBtn">Profile</button> <button id="logoutBtn">Logout</button>
+      <button id="profileBtn">Profile</button>
+      <button id="adminBtn" style="display: none; background: #ff7f00;">Admin Panel</button> <button id="logoutBtn">Logout</button>
     </div>
   </section>
   
@@ -500,11 +573,38 @@
       
     </div>
   </section>
+  
+  <section id="adminScreen" class="screen">
+    <div id="adminHeader">
+        <button id="adminBackBtn">←</button>
+        <span style="font-size: 1.15rem; font-weight: 600;">Admin Panel</span>
+    </div>
+    <div id="adminSearch">
+        <input id="adminSearchInput" placeholder="Enter username to audit..." />
+        <button id="adminSearchBtn">Search</button>
+    </div>
+    <div id="adminResults">
+        <p>Search for a user to manage their account and view audit logs.</p>
+        <div id="userInfo" style="display: none;">
+            <h4>User Details:</h4>
+            <p><strong>UID:</strong> <span id="adminUid"></span></p>
+            <p><strong>Username:</strong> <span id="adminUsername"></span></p>
+            <p><strong>Email:</strong> <span id="adminEmail"></span></p>
+            <p><strong>Full Name:</strong> <span id="adminFullName"></span></p>
+            <p><strong>Last Activity:</strong> <span id="adminLastSeen"></span></p>
+            <button id="deleteAccountBtn" style="background: #dc3545; color: white; border: none; padding: 8px 15px; border-radius: 6px; margin-top: 15px;">DELETE ACCOUNT</button>
+            
+            <h4 style="margin-top: 25px;">Chat Audit Log (Metadata Only):</h4>
+            <div id="adminChatLog"></div>
+        </div>
+    </div>
+  </section>
+
 </main>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, updatePassword } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, updatePassword, deleteUser } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
 import { getDatabase, ref, set, push, get, onChildAdded, onValue, off, update, remove, onDisconnect, query, limitToLast, orderByChild, startAt, endAt, equalTo } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js";
 
 const firebaseConfig = {
@@ -524,7 +624,9 @@ const db = getDatabase(app);
 const loginScreen=document.getElementById("loginScreen"),
       chatListScreen=document.getElementById("chatListScreen"),
       chatScreen=document.getElementById("chatScreen"),
-      profileScreen=document.getElementById("profileScreen"), 
+      profileScreen=document.getElementById("profileScreen"),
+      adminScreen=document.getElementById("adminScreen"), // NEW
+      adminBtn=document.getElementById("adminBtn"), // NEW
       chatList=document.getElementById("chatList"),
       messagesDiv=document.getElementById("messages"),
       replyBar=document.getElementById("replyBar"),
@@ -539,11 +641,11 @@ const loginScreen=document.getElementById("loginScreen"),
 let currentUser=null, currentChatId=null, replyTo=null, currentListenerRef=null, otherUserUid=null; 
 let currentChatIsGroup=false, chatMembers={};
 let typingTimer=null, typingStatusRef=null, currentTypingListener = null, currentPresenceListener = null; 
-
+let isAdmin = false; // NEW
 let activeMessageListeners = new Set();
 
 // Updated show function to include all screens
-const show=(s)=>{[loginScreen,chatListScreen,chatScreen,profileScreen].forEach(e=>e.classList.remove("active"));s.classList.add("active");}; 
+const show=(s)=>{[loginScreen,chatListScreen,chatScreen,profileScreen, adminScreen].forEach(e=>e.classList.remove("active"));s.classList.add("active");}; 
 
 // --- USER DISPLAY NAME HELPER ---
 async function getUserDisplayName(uid) {
@@ -558,7 +660,9 @@ async function getUserDisplayName(uid) {
 
 // --- PRESENCE HANDLERS ---
 function formatLastSeen(timestamp) {
-    if (!timestamp) return "";
+    if (!timestamp) return "N/A (Never logged in)";
+    if (timestamp === true) return "Online";
+
     const date = new Date(timestamp);
     const now = new Date();
     const diff = now.getTime() - date.getTime();
@@ -608,7 +712,7 @@ document.getElementById("loginBtn").onclick = async () => {
         return alert("Login failed. If you are registering, please provide a username.");
       }
       
-      const finalUsername = usernameVal || emailVal.split("@")[0];
+      const finalUsername = usernameVal;
       const normalizedUsername = finalUsername.toLowerCase();
 
       // --- UNIQUENESS CHECK ---
@@ -632,7 +736,8 @@ document.getElementById("loginBtn").onclick = async () => {
       
       // 4. Set user profile
       await set(ref(db, "users/" + uid), { 
-        username: finalUsername, 
+        username: normalizedUsername, // Store normalized username for searching
+        displayName: finalUsername, // Store original case for display (optional)
         email: emailVal 
       });
     }
@@ -645,12 +750,25 @@ onAuthStateChanged(auth, async user => {
   if(user){
     currentUser=user;
     activeMessageListeners = new Set();
+    
+    const uSnap = await get(ref(db, "users/" + user.uid));
+    let currentUsername = "";
+    if (uSnap.exists()) {
+        currentUsername = uSnap.val().username || "";
+    }
+
+    // NEW: Admin Check
+    isAdmin = currentUsername === "admin";
+    adminBtn.style.display = isAdmin ? 'block' : 'none';
+
     await loadChats();
     goOnline(); 
     show(chatListScreen);
     listenForUnread();
   } else {
     currentUser=null;
+    isAdmin = false;
+    adminBtn.style.display = 'none';
     activeMessageListeners.forEach(chatId => {
       try { off(ref(db,"chats/"+chatId+"/messages")); } catch(_) {}
     });
@@ -955,7 +1073,7 @@ async function openChat(id,name){
     }).catch(()=>{});
   }
 
-  const msgRef=ref(db,"chats/"+id+"/messages");
+  const msgRef=query(ref(db,"chats/"+id+"/messages"), limitToLast(100)); // Limit to last 100 messages for performance
   currentListenerRef=msgRef;
   onChildAdded(msgRef,s=>renderMessage(s.val()));
 }
@@ -1144,7 +1262,7 @@ document.getElementById("newDmBtn").onclick=async()=>{
   if(!inputUsername) return;
 
   const user = await findUserByUsername(inputUsername);
-  if(!user) return alert(`User "${inputUsername}" not found. (Note: username search is case-sensitive for the prompt.)`);
+  if(!user) return alert(`User "${inputUsername}" not found.`);
 
   const otherUid = user.uid;
   if(otherUid === currentUser.uid) return alert("You can't start a DM with yourself!");
@@ -1520,6 +1638,132 @@ document.getElementById("changePasswordBtn").onclick = async () => {
         }
     }
 };
+
+// --- ADMIN PANEL LOGIC ---
+let currentTargetUid = null;
+
+document.getElementById("adminBtn").onclick = () => {
+    if (!isAdmin) return alert("Access Denied.");
+    show(adminScreen);
+    document.getElementById("userInfo").style.display = 'none';
+};
+
+document.getElementById("adminBackBtn").onclick = () => {
+    show(chatListScreen);
+    currentTargetUid = null;
+};
+
+document.getElementById("adminSearchBtn").onclick = async () => {
+    const searchUsername = document.getElementById("adminSearchInput").value.trim();
+    if (!searchUsername) return alert("Enter a username.");
+
+    const user = await findUserByUsername(searchUsername);
+    
+    if (!user) {
+        document.getElementById("userInfo").style.display = 'block';
+        document.getElementById("adminUid").textContent = 'N/A';
+        document.getElementById("adminUsername").textContent = 'User Not Found';
+        document.getElementById("adminEmail").textContent = '';
+        document.getElementById("adminFullName").textContent = '';
+        document.getElementById("adminLastSeen").textContent = '';
+        document.getElementById("adminChatLog").innerHTML = '';
+        document.getElementById("deleteAccountBtn").style.display = 'none';
+        currentTargetUid = null;
+        return;
+    }
+
+    currentTargetUid = user.uid;
+    await displayAdminAudit(user);
+};
+
+async function displayAdminAudit(user) {
+    const uid = user.uid;
+    
+    // 1. Get last active status
+    const presenceSnap = await get(ref(db, 'presence/' + uid));
+    const lastSeen = formatLastSeen(presenceSnap.exists() ? presenceSnap.val() : null);
+
+    // 2. Display User Info
+    document.getElementById("adminUid").textContent = uid;
+    document.getElementById("adminUsername").textContent = user.username;
+    document.getElementById("adminEmail").textContent = user.email || 'N/A';
+    document.getElementById("adminFullName").textContent = user.fullName || 'N/A';
+    document.getElementById("adminLastSeen").textContent = lastSeen;
+    document.getElementById("deleteAccountBtn").style.display = 'block';
+    document.getElementById("userInfo").style.display = 'block';
+
+    // 3. Load Chat Metadata Log
+    const logDiv = document.getElementById("adminChatLog");
+    logDiv.innerHTML = '<p>Loading chat metadata...</p>';
+
+    const userChatsSnap = await get(ref(db, `userChats/${uid}`));
+    
+    if (!userChatsSnap.exists()) {
+        logDiv.innerHTML = '<p style="color: #999;">No chats found for this user.</p>';
+        return;
+    }
+
+    logDiv.innerHTML = '';
+    userChatsSnap.forEach(chatChild => {
+        const chatData = chatChild.val();
+        const div = document.createElement("div");
+        div.className = 'audit-item';
+        
+        let chatType = chatData.isGroup ? 'GROUP' : 'DM';
+        let chatPartner = chatData.isGroup ? '' : (chatData.name || 'Unknown User');
+
+        div.innerHTML = `
+            <strong>${chatType}: ${chatData.name}</strong>
+            <p style="margin: 0;">ID: ${chatChild.key}</p>
+            <p style="margin: 0;">Partner: ${chatPartner}</p>
+            <p style="margin: 0;">Last Message: ${new Date(chatData.lastMessageTime).toLocaleString()}</p>
+        `;
+        logDiv.appendChild(div);
+    });
+}
+
+document.getElementById("deleteAccountBtn").onclick = async () => {
+    if (!currentTargetUid || !isAdmin) return;
+    
+    const targetUid = currentTargetUid;
+    const targetUsername = document.getElementById("adminUsername").textContent;
+
+    if (!confirm(`WARNING: Are you sure you want to permanently DELETE the account for user "${targetUsername}"? This action cannot be undone.`)) {
+        return;
+    }
+
+    // Since we cannot directly use the Firebase Admin SDK from the client, we simulate the full deletion here.
+    try {
+        // 1. Delete user from the 'users' table
+        await remove(ref(db, `users/${targetUid}`));
+        
+        // 2. Delete user's chat list
+        await remove(ref(db, `userChats/${targetUid}`));
+
+        // 3. Clear presence status
+        await remove(ref(db, `presence/${targetUid}`));
+
+        // Note: Full chat message history is left in the 'chats' node. 
+        // In a production app, a cloud function would also iterate through 
+        // all chats the user was in and remove them from the 'members' list.
+
+        // **CRITICAL LIMITATION:** Client-side Firebase Security Rules prevent 
+        // one user (even 'admin') from deleting another user's authentication record 
+        // (the core login account) via the `deleteUser` function unless 
+        // the target user is the one logged in.
+        // For this educational context, we rely on the database cleanup 
+        // and acknowledge this is where an Admin SDK on a server would be needed.
+
+        alert(`Account for "${targetUsername}" (UID: ${targetUid}) has been successfully removed from the database (users, userChats, presence). \n\nNOTE: In a real system, server-side code (Admin SDK) would be required to delete the core authentication record.`);
+        
+        document.getElementById("adminSearchInput").value = '';
+        document.getElementById("userInfo").style.display = 'none';
+
+    } catch (e) {
+        alert("Error during simulated deletion: " + e.message);
+    }
+};
+// --- END ADMIN PANEL LOGIC ---
 
 
 // service worker registration and permission (Unchanged)
