@@ -607,6 +607,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebas
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, updatePassword, deleteUser } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
 import { getDatabase, ref, set, push, get, onChildAdded, onValue, off, update, remove, onDisconnect, query, limitToLast, orderByChild, startAt, endAt, equalTo } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js";
 
+// !!! 🚨 IMPORTANT: REPLACE WITH YOUR OWN FIREBASE CONFIGURATION !!!
 const firebaseConfig = {
   apiKey: "AIzaSyCEdtncZpDgOSnULIjopee7GKh9h9hveKk",
   authDomain: "messagingapp-7ede5.firebaseapp.com",
@@ -625,8 +626,8 @@ const loginScreen=document.getElementById("loginScreen"),
       chatListScreen=document.getElementById("chatListScreen"),
       chatScreen=document.getElementById("chatScreen"),
       profileScreen=document.getElementById("profileScreen"),
-      adminScreen=document.getElementById("adminScreen"), // NEW
-      adminBtn=document.getElementById("adminBtn"), // NEW
+      adminScreen=document.getElementById("adminScreen"), 
+      adminBtn=document.getElementById("adminBtn"), 
       chatList=document.getElementById("chatList"),
       messagesDiv=document.getElementById("messages"),
       replyBar=document.getElementById("replyBar"),
@@ -641,8 +642,9 @@ const loginScreen=document.getElementById("loginScreen"),
 let currentUser=null, currentChatId=null, replyTo=null, currentListenerRef=null, otherUserUid=null; 
 let currentChatIsGroup=false, chatMembers={};
 let typingTimer=null, typingStatusRef=null, currentTypingListener = null, currentPresenceListener = null; 
-let isAdmin = false; // NEW
+let isAdmin = false; 
 let activeMessageListeners = new Set();
+let currentTargetUid = null; // New variable to hold the UID of the user currently being audited
 
 // Updated show function to include all screens
 const show=(s)=>{[loginScreen,chatListScreen,chatScreen,profileScreen, adminScreen].forEach(e=>e.classList.remove("active"));s.classList.add("active");}; 
@@ -716,16 +718,13 @@ document.getElementById("loginBtn").onclick = async () => {
       const normalizedUsername = finalUsername.toLowerCase();
 
       // --- UNIQUENESS CHECK ---
+      // Query to check if the normalized username already exists
       const usersRef = ref(db, 'users');
-      const snap = await get(usersRef);
+      const usernameQuery = query(usersRef, orderByChild('username'), equalTo(normalizedUsername));
+      const snap = await get(usernameQuery);
+      
       if (snap.exists()) {
-        const users = snap.val();
-        for (const uid in users) {
-          const storedUsername = users[uid].username;
-          if (storedUsername && storedUsername.toLowerCase() === normalizedUsername) {
-            return alert(`The username "${finalUsername}" is already taken. Please choose another.`);
-          }
-        }
+        return alert(`The username "${finalUsername}" is already taken. Please choose another.`);
       }
       // --- END UNIQUENESS CHECK ---
       
@@ -734,12 +733,14 @@ document.getElementById("loginBtn").onclick = async () => {
       
       const uid = cred.user.uid;
       
-      // 4. Set user profile
+      // 4. Set user profile and add to /usernames for quick lookup
       await set(ref(db, "users/" + uid), { 
-        username: normalizedUsername, // Store normalized username for searching
+        username: normalizedUsername, // Store normalized username for searching/querying
         displayName: finalUsername, // Store original case for display (optional)
         email: emailVal 
       });
+      // Add to /usernames node (OPTIONAL, for faster lookups if you update all logic)
+      await set(ref(db, "usernames/" + normalizedUsername), uid); 
     }
   } catch (e) {
     alert(e.message);
@@ -754,10 +755,11 @@ onAuthStateChanged(auth, async user => {
     const uSnap = await get(ref(db, "users/" + user.uid));
     let currentUsername = "";
     if (uSnap.exists()) {
-        currentUsername = uSnap.val().username || "";
+        // Use the normalized username for the admin check
+        currentUsername = uSnap.val().username || ""; 
     }
 
-    // NEW: Admin Check
+    // NEW: Admin Check - Check if the logged-in user's username is 'admin' (case-insensitive due to normalization)
     isAdmin = currentUsername === "admin";
     adminBtn.style.display = isAdmin ? 'block' : 'none';
 
@@ -798,11 +800,8 @@ async function loadChats(){
           let memberUids = [];
           
           if (chat.members) {
-            if (Array.isArray(chat.members)) {
-              memberUids = chat.members;
-            } else if (typeof chat.members === 'object') {
-              memberUids = Object.keys(chat.members);
-            }
+            // Convert members map to array of UIDs
+            memberUids = Object.keys(chat.members);
             isMember = memberUids.includes(currentUser.uid);
           }
 
@@ -816,14 +815,13 @@ async function loadChats(){
           }
           let updateNeeded = false; 
 
-          // --- CRITICAL FIX: OVERRIDE DM NAME (Uses stored otherUid first) ---
+          // --- CRITICAL FIX: OVERRIDE DM NAME ---
           let finalOtherUid = data.otherUid;
           if (!finalOtherUid && isDM) {
               finalOtherUid = memberUids.find(uid => uid !== currentUser.uid);
           }
 
           if (isDM && finalOtherUid) { 
-              // Changed: Use new helper function to get the most accurate name
               const correctName = await getUserDisplayName(finalOtherUid);
               chatName = correctName; 
               
@@ -966,7 +964,7 @@ async function openChat(id,name){
   
   // load member display names
   if(chat.members){
-    const memberUids = Array.isArray(chat.members) ? chat.members : Object.keys(chat.members);
+    const memberUids = Object.keys(chat.members);
     
     // Fallback for old DMs
     if (!otherUserUid && !currentChatIsGroup && memberUids.length === 2) {
@@ -975,7 +973,6 @@ async function openChat(id,name){
 
     for(const uid of memberUids){
       try {
-        // Changed: Use helper function
         chatMembers[uid] = await getUserDisplayName(uid);
       } catch(e) {
         chatMembers[uid] = "Unknown";
@@ -1132,6 +1129,7 @@ function renderMessage(m){
   });
   
   div.addEventListener("click", (e) => {
+      // Prevents reply bar from showing if user is clicking a link
       if (e.target.tagName !== 'A') {
           showReplyBar(m.text);
       }
@@ -1153,7 +1151,7 @@ cancelReplyBtn.onclick=()=>{
 messageInput.addEventListener('input', startTyping);
 messageInput.onkeydown = () => { startTyping(); }; 
 
-// --- SEND MESSAGE HANDLER (Unchanged) ---
+// --- SEND MESSAGE HANDLER ---
 document.getElementById("sendBtn").onclick=async()=>{
   const text=messageInput.value.trim();
   if(!text||!currentChatId) return;
@@ -1172,10 +1170,7 @@ document.getElementById("sendBtn").onclick=async()=>{
   // Update lastMessageTime and lastMessageText for ALL chat members
   const chatSnap = await get(ref(db, "chats/" + currentChatId));
   const chat = chatSnap.val();
-  let memberUids = [];
-  if (chat.members) {
-    memberUids = Array.isArray(chat.members) ? chat.members : Object.keys(chat.members);
-  }
+  let memberUids = Object.keys(chat.members);
 
   const userChatUpdates = {};
   const messageSnippet = text.length > 50 ? text.slice(0, 50) + '...' : text;
@@ -1197,7 +1192,7 @@ document.getElementById("sendBtn").onclick=async()=>{
   loadChats(); 
 };
 
-// --- BACK BUTTON (Unchanged) ---
+// --- BACK BUTTON ---
 document.getElementById("backBtn").onclick=()=>{
   stopTyping();
   
@@ -1223,7 +1218,7 @@ document.getElementById("backBtn").onclick=()=>{
   show(chatListScreen);
 };
 
-// --- LOGOUT BUTTON (Unchanged) ---
+// --- LOGOUT BUTTON ---
 document.getElementById("logoutBtn").onclick=async()=>{
   if(currentChatId) stopTyping();
   
@@ -1233,11 +1228,13 @@ document.getElementById("logoutBtn").onclick=async()=>{
   show(loginScreen);
 };
 
-// --- EXACT MATCH SEARCH (Used for Prompt and Group Chat creation) ---
+// --- EXACT MATCH SEARCH (CORE LOGIC FOR ADMIN SEARCH) ---
 async function findUserByUsername(username) {
   const usersRef = ref(db, 'users');
+  // Normalize search input to match the (expected) normalized username in the database
   const searchNormalized = username.toLowerCase(); 
   
+  // Query for exact match on the 'username' field
   const usersQuery = query(
       usersRef,
       orderByChild('username'),
@@ -1249,14 +1246,14 @@ async function findUserByUsername(username) {
   
   let result = null;
   snap.forEach(child => {
-      // The query returns all matches, but since usernames are unique, it should be one
+      // Returns the first match (should be only one due to uniqueness check on signup)
       result = { uid: child.key, ...child.val() };
   });
   
   return result;
 }
 
-// --- NEW DM BUTTON LOGIC (REVERTED TO PROMPT) ---
+// --- NEW DM BUTTON LOGIC ---
 document.getElementById("newDmBtn").onclick=async()=>{
   const inputUsername=prompt("Enter the username of the person you want to message:");
   if(!inputUsername) return;
@@ -1334,7 +1331,7 @@ document.getElementById("newDmBtn").onclick=async()=>{
 };
 
 
-// --- GROUP BUTTON LOGIC (Unchanged) ---
+// --- GROUP BUTTON LOGIC ---
 document.getElementById("groupBtn").onclick=async()=>{
   const name=prompt("Group name:");
   if(!name)return;
@@ -1384,7 +1381,7 @@ document.getElementById("groupBtn").onclick=async()=>{
   loadChats();
 };
 
-// --- GROUP SETTINGS LOGIC (Unchanged) ---
+// --- GROUP SETTINGS LOGIC ---
 settingsBtn.onclick = () => {
     if (currentChatIsGroup) {
         groupSettingsMenu.style.display = groupSettingsMenu.style.display === 'flex' ? 'none' : 'flex';
@@ -1452,7 +1449,7 @@ document.getElementById("addMembersBtn").onclick = async () => {
             if (user) {
                 if (!currentMembersMap[user.uid]) {
                     currentMembersMap[user.uid] = true;
-                    newMembers.push(user.username);
+                    newMembers.push(user.displayName || user.username);
                     membersUpdated = true;
 
                     // Add to their userChats node
@@ -1473,6 +1470,7 @@ document.getElementById("addMembersBtn").onclick = async () => {
             await update(ref(db), userChatUpdates);
             
             alert(`Added new members: ${newMembers.join(', ')}`);
+            // Refresh current chat and chat list
             openChat(currentChatId, groupName); 
             loadChats(); 
         } else {
@@ -1485,7 +1483,7 @@ document.getElementById("addMembersBtn").onclick = async () => {
 };
 
 
-// --- LISTEN FOR UNREAD (Unchanged) ---
+// --- LISTEN FOR UNREAD ---
 function listenForUnread(){
   const userChatsRef = ref(db,"userChats/"+currentUser.uid);
   onValue(userChatsRef,snap=>{
@@ -1509,11 +1507,7 @@ function listenForUnread(){
       
       let isMember = false;
       if (chat.members) {
-        if (Array.isArray(chat.members)) {
-          isMember = chat.members.includes(currentUser.uid);
-        } else if (typeof chat.members === 'object') {
-          isMember = Object.keys(chat.members).includes(currentUser.uid);
-        }
+        isMember = Object.keys(chat.members).includes(currentUser.uid);
       }
 
       if(!isMember) return;
@@ -1640,7 +1634,6 @@ document.getElementById("changePasswordBtn").onclick = async () => {
 };
 
 // --- ADMIN PANEL LOGIC ---
-let currentTargetUid = null;
 
 document.getElementById("adminBtn").onclick = () => {
     if (!isAdmin) return alert("Access Denied.");
@@ -1651,23 +1644,27 @@ document.getElementById("adminBtn").onclick = () => {
 document.getElementById("adminBackBtn").onclick = () => {
     show(chatListScreen);
     currentTargetUid = null;
+    document.getElementById("adminSearchInput").value = '';
 };
 
 document.getElementById("adminSearchBtn").onclick = async () => {
     const searchUsername = document.getElementById("adminSearchInput").value.trim();
-    if (!searchUsername) return alert("Enter a username.");
+    if (!searchUsername) {
+        document.getElementById("userInfo").style.display = 'none';
+        return alert("Enter a username.");
+    }
 
     const user = await findUserByUsername(searchUsername);
     
     if (!user) {
-        document.getElementById("userInfo").style.display = 'block';
         document.getElementById("adminUid").textContent = 'N/A';
         document.getElementById("adminUsername").textContent = 'User Not Found';
         document.getElementById("adminEmail").textContent = '';
         document.getElementById("adminFullName").textContent = '';
         document.getElementById("adminLastSeen").textContent = '';
-        document.getElementById("adminChatLog").innerHTML = '';
+        document.getElementById("adminChatLog").innerHTML = '<p style="color: #999;">No user data available.</p>';
         document.getElementById("deleteAccountBtn").style.display = 'none';
+        document.getElementById("userInfo").style.display = 'block'; // Show the box with "User Not Found"
         currentTargetUid = null;
         return;
     }
@@ -1685,7 +1682,7 @@ async function displayAdminAudit(user) {
 
     // 2. Display User Info
     document.getElementById("adminUid").textContent = uid;
-    document.getElementById("adminUsername").textContent = user.username;
+    document.getElementById("adminUsername").textContent = user.displayName || user.username;
     document.getElementById("adminEmail").textContent = user.email || 'N/A';
     document.getElementById("adminFullName").textContent = user.fullName || 'N/A';
     document.getElementById("adminLastSeen").textContent = lastSeen;
@@ -1696,6 +1693,7 @@ async function displayAdminAudit(user) {
     const logDiv = document.getElementById("adminChatLog");
     logDiv.innerHTML = '<p>Loading chat metadata...</p>';
 
+    // This query uses the /userChats node confirmed in your database structure
     const userChatsSnap = await get(ref(db, `userChats/${uid}`));
     
     if (!userChatsSnap.exists()) {
@@ -1704,19 +1702,44 @@ async function displayAdminAudit(user) {
     }
 
     logDiv.innerHTML = '';
+    const chatAuditItems = [];
+
     userChatsSnap.forEach(chatChild => {
+        const chatId = chatChild.key;
         const chatData = chatChild.val();
-        const div = document.createElement("div");
-        div.className = 'audit-item';
         
         let chatType = chatData.isGroup ? 'GROUP' : 'DM';
         let chatPartner = chatData.isGroup ? '' : (chatData.name || 'Unknown User');
 
+        // Only include items with required metadata
+        if (chatData.lastMessageTime) {
+            chatAuditItems.push({
+                chatId: chatId,
+                name: chatData.name,
+                type: chatType,
+                partner: chatPartner,
+                lastTime: chatData.lastMessageTime
+            });
+        }
+    });
+
+    // Sort by last message time
+    chatAuditItems.sort((a, b) => b.lastTime - a.lastTime);
+
+    if (chatAuditItems.length === 0) {
+        logDiv.innerHTML = '<p style="color: #999;">No chat activity with message metadata found.</p>';
+        return;
+    }
+    
+    chatAuditItems.forEach(item => {
+        const div = document.createElement("div");
+        div.className = 'audit-item';
+        
         div.innerHTML = `
-            <strong>${chatType}: ${chatData.name}</strong>
-            <p style="margin: 0;">ID: ${chatChild.key}</p>
-            <p style="margin: 0;">Partner: ${chatPartner}</p>
-            <p style="margin: 0;">Last Message: ${new Date(chatData.lastMessageTime).toLocaleString()}</p>
+            <strong>${item.type}: ${item.name}</strong>
+            <p style="margin: 0;">ID: ${item.chatId}</p>
+            ${item.type === 'DM' ? `<p style="margin: 0;">Partner: ${item.partner}</p>` : ''}
+            <p style="margin: 0;">Last Message: ${new Date(item.lastTime).toLocaleString()}</p>
         `;
         logDiv.appendChild(div);
     });
@@ -1732,7 +1755,6 @@ document.getElementById("deleteAccountBtn").onclick = async () => {
         return;
     }
 
-    // Since we cannot directly use the Firebase Admin SDK from the client, we simulate the full deletion here.
     try {
         // 1. Delete user from the 'users' table
         await remove(ref(db, `users/${targetUid}`));
@@ -1742,19 +1764,18 @@ document.getElementById("deleteAccountBtn").onclick = async () => {
 
         // 3. Clear presence status
         await remove(ref(db, `presence/${targetUid}`));
+        
+        // 4. Delete from /usernames node (if implemented)
+        const uSnap = await get(ref(db, "users/" + targetUid));
+        const usernameToDelete = uSnap.val()?.username;
+        if(usernameToDelete) {
+             await remove(ref(db, `usernames/${usernameToDelete}`));
+        }
 
-        // Note: Full chat message history is left in the 'chats' node. 
-        // In a production app, a cloud function would also iterate through 
-        // all chats the user was in and remove them from the 'members' list.
 
-        // **CRITICAL LIMITATION:** Client-side Firebase Security Rules prevent 
-        // one user (even 'admin') from deleting another user's authentication record 
-        // (the core login account) via the `deleteUser` function unless 
-        // the target user is the one logged in.
-        // For this educational context, we rely on the database cleanup 
-        // and acknowledge this is where an Admin SDK on a server would be needed.
-
-        alert(`Account for "${targetUsername}" (UID: ${targetUid}) has been successfully removed from the database (users, userChats, presence). \n\nNOTE: In a real system, server-side code (Admin SDK) would be required to delete the core authentication record.`);
+        // 5. Clean up the user's Auth record (Requires Admin SDK on a server, client SDK can only delete current user)
+        
+        alert(`Account for "${targetUsername}" (UID: ${targetUid}) has been successfully removed from the database (users, userChats, presence, usernames). \n\n🔒 EDUCATIONAL NOTE: In a real system, server-side code (Admin SDK) is *required* to delete the core login authentication record, which was not removed here.`);
         
         document.getElementById("adminSearchInput").value = '';
         document.getElementById("userInfo").style.display = 'none';
@@ -1766,7 +1787,7 @@ document.getElementById("deleteAccountBtn").onclick = async () => {
 // --- END ADMIN PANEL LOGIC ---
 
 
-// service worker registration and permission (Unchanged)
+// service worker registration and permission
 if("serviceWorker" in navigator){
   navigator.serviceWorker.register("sw.js").then(()=> {
     if(Notification.permission !== "granted" && Notification.permission !== "denied"){
