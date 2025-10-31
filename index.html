@@ -345,6 +345,98 @@
   #sendBtn:hover { background: #0056b3; }
   #sendBtn:active { transform: scale(0.95); }
   
+  /* --- 4. PROFILE SCREEN --- */
+  #profileScreen { background: #1e1e1e; flex: 1; }
+  #profileHeader {
+    background: #121212;
+    color: white;
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    border-bottom: 1px solid #333333;
+  }
+  #profileHeader button { 
+    background: none; 
+    border: none; 
+    color: white; 
+    font-size: 1.4rem; 
+    cursor: pointer; 
+    padding: 0 10px; 
+    transition: color 0.2s;
+  }
+  #profileHeader button:hover { color: #007bff; }
+
+  #profileContent input {
+      display: block;
+      width: 90%;
+      max-width: 400px;
+      margin: 8px 0 15px 0;
+      padding: 10px;
+      border-radius: 6px;
+      border: none;
+      background: #333333;
+      color: #ffffff;
+      font-size: 1rem;
+  }
+
+  #profileContent button {
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 500;
+      transition: background 0.3s;
+  }
+
+  /* --- 5. NEW DM MODAL/SCREEN (Interactive Search) --- */
+  #dmSearchScreen {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: #1e1e1e;
+      z-index: 50;
+      display: none;
+      flex-direction: column;
+  }
+  #dmSearchHeader {
+      display: flex;
+      align-items: center;
+      background: #121212;
+      padding: 10px;
+      border-bottom: 1px solid #333;
+  }
+  #dmSearchInput {
+      flex-grow: 1;
+      padding: 10px;
+      margin-left: 10px;
+      border-radius: 20px;
+      border: none;
+      background: #333;
+      color: white;
+      font-size: 1rem;
+      outline: none;
+  }
+  #searchResults {
+      flex-grow: 1;
+      overflow-y: auto;
+  }
+  .searchResultItem {
+      padding: 15px;
+      border-bottom: 1px solid #333;
+      cursor: pointer;
+      transition: background 0.2s;
+  }
+  .searchResultItem:hover {
+      background: #252526;
+  }
+  .searchResultItem strong {
+      color: #007bff;
+      margin-right: 5px;
+  }
+  
   /* --- MEDIA QUERY: DESKTOP/TABLET OPTIMIZATION --- */
   @media (min-width: 700px) {
     /* Main container is now full screen on desktop/tablet */
@@ -399,7 +491,7 @@
     <div id="bottomMenu">
       <button id="newDmBtn">New DM</button> 
       <button id="groupBtn">New Group</button>
-      <button id="logoutBtn">Logout</button>
+      <button id="profileBtn">Profile</button> <button id="logoutBtn">Logout</button>
     </div>
   </section>
   
@@ -429,12 +521,50 @@
       <button id="sendBtn">➤</button>
     </div>
   </section>
+
+  <section id="profileScreen" class="screen">
+    <div id="profileHeader">
+      <button id="profileBackBtn">←</button>
+      <span style="font-size: 1.15rem; font-weight: 600;">Account Settings</span>
+    </div>
+    <div id="profileContent" style="padding: 20px;">
+      <h3>User Profile</h3>
+      <p>Username: <strong id="currentUsernameDisplay"></strong> (Cannot be changed)</p>
+      
+      <label for="firstName">First Name:</label>
+      <input id="firstName" placeholder="First Name" />
+      
+      <label for="lastName">Last Name:</label>
+      <input id="lastName" placeholder="Last Name" />
+      
+      <button id="saveNameBtn" style="margin-top: 15px; background: #007bff;">Save Name</button>
+      
+      <hr style="border: none; border-top: 1px solid #333; margin: 30px 0;">
+
+      <h3>Change Password</h3>
+      <input id="newPassword" type="password" placeholder="New Password (min 6 chars)" />
+      <input id="confirmPassword" type="password" placeholder="Confirm New Password" />
+      <button id="changePasswordBtn" style="margin-top: 15px; background: #ff7f00;">Change Password</button>
+      
+    </div>
+  </section>
+
+  <section id="dmSearchScreen" style="display: none;">
+    <div id="dmSearchHeader">
+      <button id="dmSearchBackBtn">←</button>
+      <input id="dmSearchInput" placeholder="Search for username..." />
+    </div>
+    <div id="searchResults">
+      <p style="padding: 15px; color: #999;">Start typing a username to search...</p>
+      </div>
+  </section>
+
 </main>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
-import { getDatabase, ref, set, push, get, onChildAdded, onValue, off, update, remove, onDisconnect, query, limitToLast } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js";
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, updatePassword } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
+import { getDatabase, ref, set, push, get, onChildAdded, onValue, off, update, remove, onDisconnect, query, limitToLast, orderByChild, startAt, endAt, equalTo } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCEdtncZpDgOSnULIjopee7GKh9h9hveKk",
@@ -453,6 +583,8 @@ const db = getDatabase(app);
 const loginScreen=document.getElementById("loginScreen"),
       chatListScreen=document.getElementById("chatListScreen"),
       chatScreen=document.getElementById("chatScreen"),
+      profileScreen=document.getElementById("profileScreen"), // ADDED
+      dmSearchScreen=document.getElementById("dmSearchScreen"), // ADDED
       chatList=document.getElementById("chatList"),
       messagesDiv=document.getElementById("messages"),
       replyBar=document.getElementById("replyBar"),
@@ -466,15 +598,26 @@ const loginScreen=document.getElementById("loginScreen"),
 
 let currentUser=null, currentChatId=null, replyTo=null, currentListenerRef=null, otherUserUid=null; 
 let currentChatIsGroup=false, chatMembers={};
-// TRACKING all three types of listeners for proper cleanup
 let typingTimer=null, typingStatusRef=null, currentTypingListener = null, currentPresenceListener = null; 
 
 let activeMessageListeners = new Set();
 
-const show=(s)=>{[loginScreen,chatListScreen,chatScreen].forEach(e=>e.classList.remove("active"));s.classList.add("active");}; 
+// Updated show function to include all screens
+const show=(s)=>{[loginScreen,chatListScreen,chatScreen,profileScreen,dmSearchScreen].forEach(e=>e.classList.remove("active"));s.classList.add("active");}; 
+
+// --- USER DISPLAY NAME HELPER ---
+async function getUserDisplayName(uid) {
+    const uSnap = await get(ref(db, "users/" + uid));
+    if (uSnap.exists()) {
+        const userData = uSnap.val();
+        // Prioritize fullName, fallback to username
+        return userData.fullName || userData.username || "Unknown User";
+    }
+    return "Deleted User";
+}
 
 // --- PRESENCE HANDLERS ---
-
+// ... (goOnline and goOffline functions remain unchanged) ...
 function formatLastSeen(timestamp) {
     if (!timestamp) return "";
     const date = new Date(timestamp);
@@ -577,7 +720,7 @@ onAuthStateChanged(auth, async user => {
   }
 });
 
-// --- LOAD CHATS (WITH DM NAME CORRECTION AND LAST MESSAGE SNIPPET) ---
+// --- LOAD CHATS ---
 async function loadChats(){
   chatList.innerHTML="";
   
@@ -623,19 +766,14 @@ async function loadChats(){
           }
 
           if (isDM && finalOtherUid) { 
-              const userSnap = await get(ref(db, "users/" + finalOtherUid));
-              if (userSnap.exists()) {
-                  const correctName = userSnap.val().username || "DM User"; 
-                  chatName = correctName; 
-                  
-                  if (data.name !== correctName || !data.name || !data.otherUid) { 
-                      updateNeeded = true;    
-                  }
-                  chatMembers[finalOtherUid] = chatName; 
-              } else {
-                  chatName = "Deleted User";
-                  if (data.name !== chatName || !data.name) updateNeeded = true;
+              // Changed: Use new helper function to get the most accurate name
+              const correctName = await getUserDisplayName(finalOtherUid);
+              chatName = correctName; 
+              
+              if (data.name !== correctName || !data.name || !data.otherUid) { 
+                  updateNeeded = true;    
               }
+              chatMembers[finalOtherUid] = chatName; 
           } else if (isDM && !finalOtherUid) {
               chatName = "DM Setup Error";
           }
@@ -722,19 +860,16 @@ async function openChat(id,name){
   stopTyping(); 
   
   // --- CRITICAL FIX 1: Cleanup old listeners on openChat ---
-  // Save the old chat ID and other UID for correct cleanup before overwriting
   const oldChatId = currentChatId;
   const oldOtherUserUid = otherUserUid;
 
   if(currentListenerRef){ off(currentListenerRef); currentListenerRef=null; }
   
-  // Clean up the previous typing listener using the old chat ID
   if(currentTypingListener && oldChatId){ 
     off(ref(db, "typing/" + oldChatId), currentTypingListener); 
     currentTypingListener = null; 
   }
   
-  // Clean up the previous presence listener using the old other UID
   if (currentPresenceListener && oldOtherUserUid) {
     off(ref(db, 'presence/' + oldOtherUserUid), currentPresenceListener);
     currentPresenceListener = null;
@@ -749,7 +884,7 @@ async function openChat(id,name){
   chatStatus.textContent = ""; 
   chatStatus.classList.remove("online");
   chatMembers = {}; 
-  otherUserUid = null; // Will be set below
+  otherUserUid = null; 
   groupSettingsMenu.style.display = 'none'; 
   settingsBtn.style.display = 'none'; 
 
@@ -772,7 +907,7 @@ async function openChat(id,name){
       otherUserUid = userChatData.otherUid;
   }
   
-  // load member usernames
+  // load member display names
   if(chat.members){
     const memberUids = Array.isArray(chat.members) ? chat.members : Object.keys(chat.members);
     
@@ -783,8 +918,8 @@ async function openChat(id,name){
 
     for(const uid of memberUids){
       try {
-        const uSnap = await get(ref(db,"users/"+uid));
-        if(uSnap.exists()) chatMembers[uid] = uSnap.val().username || "Unknown";
+        // Changed: Use helper function
+        chatMembers[uid] = await getUserDisplayName(uid);
       } catch(e) {
         chatMembers[uid] = "Unknown";
       }
@@ -794,9 +929,8 @@ async function openChat(id,name){
   // --- Presence Listener for DM Status ---
   if (otherUserUid) {
       const presenceRef = ref(db, 'presence/' + otherUserUid);
-      // Store the listener function reference
       currentPresenceListener = onValue(presenceRef, (snapshot) => {
-          if (currentChatId !== id) return; // Guard clause
+          if (currentChatId !== id) return; 
           if (!snapshot.exists()) {
               chatStatus.textContent = "";
               chatStatus.classList.remove("online");
@@ -824,12 +958,10 @@ async function openChat(id,name){
   // --- End Presence Listener ---
 
 
-  // --- CRITICAL FIX 2: Typing Indicator Listener ---
+  // --- Typing Indicator Listener ---
   const typingRef = ref(db, "typing/" + id);
   
-  // Store the listener function reference
   currentTypingListener = onValue(typingRef, (snapshot) => {
-      // Guard clause to ensure the listener only acts on the currently open chat
       if (currentChatId !== id) { 
           return;
       }
@@ -846,7 +978,6 @@ async function openChat(id,name){
           const uid = child.key;
           const timestamp = child.val();
           
-          // Check if the timestamp is recent (within 2 seconds)
           if(uid !== currentUser.uid && (now - timestamp) < 2000) {
               const uname = chatMembers[uid] || "Someone";
               typingUsers.push(uname);
@@ -855,7 +986,6 @@ async function openChat(id,name){
       
       if(typingUsers.length > 0) {
           if(typingUsers.length === 1) {
-              // In DMs, use the chat name (which is the other user's name)
               const namePart = currentChatIsGroup ? typingUsers[0] : document.getElementById("chatName").textContent;
               typingIndicator.textContent = `${namePart} is typing...`.trim();
           } else if(typingUsers.length === 2) {
@@ -867,7 +997,7 @@ async function openChat(id,name){
           typingIndicator.textContent = "";
       }
   });
-  // --- END CRITICAL FIX 2 ---
+  // --- END Typing Indicator Listener ---
 
 
   // mark messages as read and set lastRead
@@ -891,7 +1021,7 @@ async function openChat(id,name){
   onChildAdded(msgRef,s=>renderMessage(s.val()));
 }
 
-// --- RENDER MESSAGE (SWIPE TO REPLY ADDED) ---
+// --- RENDER MESSAGE ---
 function renderMessage(m){
   const div=document.createElement("div");
   div.classList.add("msg",m.sender===currentUser.uid?"me":"them");
@@ -902,7 +1032,6 @@ function renderMessage(m){
     senderLabel=`<div class="sender">${uname}</div>`;
   }
 
-  // Simple link detection (basic)
   const linkedText = m.text.replace(
       /(https?:\/\/[^\s]+)/g,
       '<a href="$1" target="_blank" style="color: inherit;">$1</a>'
@@ -967,7 +1096,7 @@ cancelReplyBtn.onclick=()=>{
 messageInput.addEventListener('input', startTyping);
 messageInput.onkeydown = () => { startTyping(); }; 
 
-// --- SEND BUTTON ---
+// --- SEND MESSAGE HANDLER (Unchanged) ---
 document.getElementById("sendBtn").onclick=async()=>{
   const text=messageInput.value.trim();
   if(!text||!currentChatId) return;
@@ -1011,28 +1140,25 @@ document.getElementById("sendBtn").onclick=async()=>{
   loadChats(); 
 };
 
+// --- BACK BUTTON (Unchanged) ---
 document.getElementById("backBtn").onclick=()=>{
   stopTyping();
   
-  const chatToCleanup = currentChatId; // CRITICAL: SAVE the ID before nulling it
+  const chatToCleanup = currentChatId; 
   const otherUserToCleanup = otherUserUid;
 
   currentChatId=null;
   if(currentListenerRef){off(currentListenerRef); currentListenerRef=null;}
   
-  // --- CRITICAL FIX 3: Cleanup typing listener on backBtn click ---
   if(currentTypingListener && chatToCleanup){ 
     off(ref(db, "typing/" + chatToCleanup), currentTypingListener); 
     currentTypingListener = null; 
   }
-  // Clean up presence listener
   if (currentPresenceListener && otherUserToCleanup) {
       off(ref(db, 'presence/' + otherUserToCleanup), currentPresenceListener);
       currentPresenceListener = null;
   }
-  // --- END CRITICAL FIX 3 ---
 
-  // Hide settings elements
   settingsBtn.style.display = 'none'; 
   groupSettingsMenu.style.display = 'none';
 
@@ -1040,6 +1166,7 @@ document.getElementById("backBtn").onclick=()=>{
   show(chatListScreen);
 };
 
+// --- LOGOUT BUTTON (Unchanged) ---
 document.getElementById("logoutBtn").onclick=async()=>{
   if(currentChatId) stopTyping();
   
@@ -1049,54 +1176,114 @@ document.getElementById("logoutBtn").onclick=async()=>{
   show(loginScreen);
 };
 
-// --- HELPER FUNCTION TO FIND USER BY USERNAME (Full database scan) ---
-async function findUserByUsername(username) {
+// --- HELPER FUNCTION TO FIND USER BY USERNAME (Full database scan - now improved with startAt/endAt for partial match) ---
+async function findUsersByPartialUsername(partialUsername) {
+  if (partialUsername.length < 2) return []; // Require at least 2 chars to search
+  
   const usersRef = ref(db, 'users');
-  const snap = await get(usersRef);
+  const searchNormalized = partialUsername.toLowerCase();
   
-  if (!snap.exists()) return null;
+  // Firebase Realtime Database prefix search hack:
+  // \uf8ff is a high-value Unicode character that ensures the search range includes all keys starting with the prefix.
+  const usersQuery = query(
+    usersRef,
+    orderByChild('username'),
+    startAt(searchNormalized),
+    endAt(searchNormalized + "\uf8ff"),
+    limitToLast(10) // Limit results for performance
+  );
   
-  const users = snap.val();
-  const searchUsername = username.toLowerCase(); 
-
-  let result = null;
+  const snap = await get(usersQuery);
+  const results = [];
   
-  for (const uid in users) {
-    if (users[uid].username && users[uid].username.toLowerCase() === searchUsername) {
-      result = { uid: uid, ...users[uid] };
-      break; 
-    }
+  if (snap.exists()) {
+    snap.forEach(child => {
+      const userData = child.val();
+      const uid = child.key;
+      
+      // Filter out current user and ensure they have a username/ID
+      if (uid !== currentUser.uid) {
+        results.push({ uid: uid, ...userData });
+      }
+    });
   }
-  return result;
+  return results;
 }
 
-// --- NEW DM BUTTON LOGIC ---
-document.getElementById("newDmBtn").onclick=async()=>{
-  const username=prompt("Enter the username of the person you want to chat with:");
-  if(!username) return;
+// --- NEW DM BUTTON LOGIC (Opens Search Screen) ---
+document.getElementById("newDmBtn").onclick=()=>{
+  show(dmSearchScreen);
+  document.getElementById("dmSearchInput").value = "";
+  document.getElementById("searchResults").innerHTML = `<p style="padding: 15px; color: #999;">Start typing a username to search...</p>`;
+  document.getElementById("dmSearchInput").focus();
+};
 
-  const user = await findUserByUsername(username);
+document.getElementById("dmSearchBackBtn").onclick = () => {
+    show(chatListScreen);
+};
 
-  if (!user) {
-    return alert(`User with username "${username}" not found.`);
-  }
-  
-  if (user.uid === currentUser.uid) {
-    return alert("You can't start a DM with yourself.");
-  }
-  
+// --- DM SEARCH INPUT HANDLER ---
+const dmSearchInput = document.getElementById("dmSearchInput");
+const searchResultsDiv = document.getElementById("searchResults");
+let searchTimeout;
+
+dmSearchInput.addEventListener('input', () => {
+    clearTimeout(searchTimeout);
+    const queryText = dmSearchInput.value.trim();
+    
+    if (queryText.length < 2) {
+        searchResultsDiv.innerHTML = `<p style="padding: 15px; color: #999;">Keep typing...</p>`;
+        return;
+    }
+
+    searchTimeout = setTimeout(async () => {
+        searchResultsDiv.innerHTML = `<p style="padding: 15px; color: #007bff;">Searching...</p>`;
+        const users = await findUsersByPartialUsername(queryText);
+        renderSearchResults(users);
+    }, 300); // Debounce search
+
+});
+
+function renderSearchResults(users) {
+    if (users.length === 0) {
+        searchResultsDiv.innerHTML = `<p style="padding: 15px; color: #ff0000;">No users found matching this start of the username.</p>`;
+        return;
+    }
+    
+    searchResultsDiv.innerHTML = '';
+    
+    users.forEach(user => {
+        const div = document.createElement("div");
+        div.className = "searchResultItem";
+        
+        const displayName = user.fullName || "N/A";
+
+        div.innerHTML = `
+            <div>
+                <strong>${user.username}</strong>
+                <span style="font-size:0.9rem; color:#ccc;">(${displayName})</span>
+            </div>
+        `;
+        
+        div.onclick = () => createOrOpenDM(user);
+        searchResultsDiv.appendChild(div);
+    });
+}
+
+
+// --- CREATE OR OPEN DM ---
+async function createOrOpenDM(user) {
   const otherUid = user.uid;
-  const otherUsername = user.username;
+  const otherDisplayName = await getUserDisplayName(otherUid); 
 
   try {
-    // 1. Check if a DM with this user already exists in userChats
+    // 1. Check if a DM with this user already exists
     const userChatsSnap = await get(ref(db, `userChats/${currentUser.uid}`));
     let existingChatId = null;
 
     if (userChatsSnap.exists()) {
         userChatsSnap.forEach(chatChild => {
             const chatData = chatChild.val();
-            // Checking both otherUid and that it's a DM (isGroup: false)
             if (chatData.otherUid === otherUid && chatData.isGroup === false) {
                 existingChatId = chatChild.key;
             }
@@ -1104,10 +1291,10 @@ document.getElementById("newDmBtn").onclick=async()=>{
     }
 
     if (existingChatId) {
-        // Chat exists, navigate to it
         show(chatListScreen);
         await loadChats();
-        openChat(existingChatId, otherUsername);
+        openChat(existingChatId, otherDisplayName);
+        document.getElementById("dmSearchScreen").style.display = 'none';
         return;
     }
 
@@ -1117,18 +1304,17 @@ document.getElementById("newDmBtn").onclick=async()=>{
     const creationTime = Date.now(); 
     
     await set(refNew, {
-      name: otherUsername, 
+      name: otherDisplayName, 
       isGroup: false,
       members: newMembersMap
     });
     
-    const currentUserProfileSnap = await get(ref(db, "users/" + currentUser.uid));
-    const currentUsername = currentUserProfileSnap.val() ? currentUserProfileSnap.val().username : "You";
+    const currentUserDisplayName = await getUserDisplayName(currentUser.uid);
 
     await update(ref(db), {
       // Current User's side (You)
       [`/userChats/${currentUser.uid}/${refNew.key}`]: { 
-          name: otherUsername, 
+          name: otherDisplayName, 
           isGroup: false,
           lastMessageTime: creationTime,
           otherUid: otherUid,
@@ -1136,7 +1322,7 @@ document.getElementById("newDmBtn").onclick=async()=>{
       }, 
       // Other User's side
       [`/userChats/${otherUid}/${refNew.key}`]: { 
-          name: currentUsername, 
+          name: currentUserDisplayName, 
           isGroup: false,
           lastMessageTime: creationTime,
           otherUid: currentUser.uid,
@@ -1147,14 +1333,15 @@ document.getElementById("newDmBtn").onclick=async()=>{
     // 3. Navigate to the new chat
     show(chatListScreen);
     await loadChats();
-    openChat(refNew.key, otherUsername);
+    openChat(refNew.key, otherDisplayName);
+    document.getElementById("dmSearchScreen").style.display = 'none';
 
   } catch (e) {
     alert("Error creating DM: " + e.message);
   }
-};
+}
 
-
+// --- GROUP BUTTON LOGIC (Unchanged) ---
 document.getElementById("groupBtn").onclick=async()=>{
   const name=prompt("Group name:");
   if(!name)return;
@@ -1165,7 +1352,8 @@ document.getElementById("groupBtn").onclick=async()=>{
   const memberIds=[currentUser.uid];
   
   for (const uname of usernames) {
-    const user = await findUserByUsername(uname);
+    // NOTE: Group creation still uses the old exact match findUserByUsername for simplicity
+    const user = await findUserByUsername(uname); 
     if (user) {
       if (user.uid !== currentUser.uid && !memberIds.includes(user.uid)) {
         memberIds.push(user.uid);
@@ -1204,9 +1392,7 @@ document.getElementById("groupBtn").onclick=async()=>{
   loadChats();
 };
 
-// --- GROUP SETTINGS LOGIC ---
-
-// Toggle visibility of the settings menu
+// --- GROUP SETTINGS LOGIC (Unchanged) ---
 settingsBtn.onclick = () => {
     if (currentChatIsGroup) {
         groupSettingsMenu.style.display = groupSettingsMenu.style.display === 'flex' ? 'none' : 'flex';
@@ -1214,7 +1400,6 @@ settingsBtn.onclick = () => {
     }
 };
 
-// Handle click outside the menu to close it
 document.addEventListener('click', (e) => {
     if (groupSettingsMenu.style.display === 'flex' && !settingsBtn.contains(e.target) && !groupSettingsMenu.contains(e.target)) {
         groupSettingsMenu.style.display = 'none';
@@ -1230,10 +1415,7 @@ document.getElementById("renameGroupBtn").onclick = async () => {
     if (!newName || newName.trim() === '') return;
 
     try {
-        // 1. Update the chat name in the main /chats node
         await update(ref(db, `chats/${currentChatId}`), { name: newName });
-
-        // 2. Get current members to update their userChats node
         const chatSnap = await get(ref(db, `chats/${currentChatId}`));
         const chat = chatSnap.val();
         let memberUids = Object.keys(chat.members || {});
@@ -1246,8 +1428,8 @@ document.getElementById("renameGroupBtn").onclick = async () => {
         await update(ref(db), userChatUpdates);
         
         alert(`Group renamed to "${newName}" successfully!`);
-        openChat(currentChatId, newName); // Re-open chat to update header
-        loadChats(); // Update chat list
+        openChat(currentChatId, newName); 
+        loadChats(); 
 
     } catch (error) {
         alert("Error renaming group: " + error.message);
@@ -1295,15 +1477,12 @@ document.getElementById("addMembersBtn").onclick = async () => {
         }
 
         if (membersUpdated) {
-            // 1. Update the main /chats members list
             await update(ref(db, `chats/${currentChatId}`), { members: currentMembersMap });
-
-            // 2. Update all affected userChats nodes
             await update(ref(db), userChatUpdates);
             
             alert(`Added new members: ${newMembers.join(', ')}`);
-            openChat(currentChatId, groupName); // Re-open chat
-            loadChats(); // Update chat list
+            openChat(currentChatId, groupName); 
+            loadChats(); 
         } else {
             alert("No new valid members were added.");
         }
@@ -1314,7 +1493,7 @@ document.getElementById("addMembersBtn").onclick = async () => {
 };
 
 
-// --- LISTEN FOR UNREAD ---
+// --- LISTEN FOR UNREAD (Unchanged) ---
 function listenForUnread(){
   const userChatsRef = ref(db,"userChats/"+currentUser.uid);
   onValue(userChatsRef,snap=>{
@@ -1360,7 +1539,6 @@ function listenForUnread(){
         
         const messageSnippet = m.text.length > 50 ? m.text.slice(0, 50) + '...' : m.text;
 
-        // Update last message time and text
         update(ref(db, `/userChats/${currentUser.uid}/${chatId}`), {
              lastMessageTime: m.time,
              lastMessageText: messageSnippet
@@ -1376,7 +1554,6 @@ function listenForUnread(){
             loadChats(); 
 
             const chatDiv = [...chatList.children].find(d => d.dataset.id === chatId);
-            // This is a rough way to get the chat name from the UI, safer to re-fetch from data or userChats
             const title = chatDiv ? chatDiv.querySelector('div:first-child').firstChild.textContent.trim() : "New message"; 
             showNotification(title, m.text || "New Message", chatId);
 
@@ -1387,7 +1564,115 @@ function listenForUnread(){
   });
 }
 
-// service worker registration and permission
+// --- PROFILE BUTTON HANDLER ---
+document.getElementById("profileBtn").onclick = async () => {
+    show(profileScreen);
+    await loadProfileData();
+};
+
+document.getElementById("profileBackBtn").onclick = () => {
+    show(chatListScreen);
+};
+
+// --- LOAD PROFILE DATA ---
+async function loadProfileData() {
+    if (!currentUser) return;
+    
+    const usersRef = ref(db, 'users/' + currentUser.uid);
+    const snap = await get(usersRef);
+    
+    if (snap.exists()) {
+        const userData = snap.val();
+        
+        document.getElementById("currentUsernameDisplay").textContent = userData.username || 'N/A';
+        
+        if (userData.fullName) {
+            const parts = userData.fullName.split(' ');
+            document.getElementById("firstName").value = parts[0] || '';
+            document.getElementById("lastName").value = parts.slice(1).join(' ') || '';
+        } else {
+            document.getElementById("firstName").value = '';
+            document.getElementById("lastName").value = '';
+        }
+    }
+}
+
+// --- SAVE NAME HANDLER ---
+document.getElementById("saveNameBtn").onclick = async () => {
+    const firstName = document.getElementById("firstName").value.trim();
+    const lastName = document.getElementById("lastName").value.trim();
+    
+    if (!firstName || !lastName) {
+        return alert("Please enter both first and last names.");
+    }
+
+    const fullName = `${firstName} ${lastName}`;
+    
+    try {
+        await update(ref(db, `users/${currentUser.uid}`), {
+            fullName: fullName
+        });
+        alert("Your name has been updated!");
+        loadChats(); 
+    } catch (e) {
+        alert("Error saving name: " + e.message);
+    }
+};
+
+// --- CHANGE PASSWORD HANDLER ---
+document.getElementById("changePasswordBtn").onclick = async () => {
+    const newPassword = document.getElementById("newPassword").value;
+    const confirmPassword = document.getElementById("confirmPassword").value;
+    
+    if (newPassword !== confirmPassword) {
+        return alert("Passwords do not match.");
+    }
+    
+    if (newPassword.length < 6) {
+        return alert("Password must be at least 6 characters long.");
+    }
+
+    try {
+        await updatePassword(auth.currentUser, newPassword);
+        alert("Password updated successfully! You may need to log in again if prompted.");
+        
+        document.getElementById("newPassword").value = '';
+        document.getElementById("confirmPassword").value = '';
+    } catch (error) {
+        if (error.code === 'auth/requires-recent-login') {
+            alert("Security Error: To change your password, please log out and log back in, then try again.");
+        } else {
+            alert("Error changing password: " + error.message);
+        }
+    }
+};
+
+// --- OLD EXACT MATCH SEARCH (Kept for Group Chat creation for simplicity) ---
+async function findUserByUsername(username) {
+  const usersRef = ref(db, 'users');
+  const searchNormalized = username.toLowerCase(); 
+  
+  // Use exact match query for group creation
+  const usersQuery = query(
+      usersRef,
+      orderByChild('username'),
+      equalTo(searchNormalized)
+  );
+
+  const snap = await get(usersQuery);
+  if (!snap.exists()) return null;
+  
+  let result = null;
+  snap.forEach(child => {
+      // The query returns all matches, but since usernames are unique, it should be one
+      result = { uid: child.key, ...child.val() };
+  });
+  
+  return result;
+}
+
+
+// service worker registration and permission (Unchanged)
 if("serviceWorker" in navigator){
   navigator.serviceWorker.register("sw.js").then(()=> {
     if(Notification.permission !== "granted" && Notification.permission !== "denied"){
