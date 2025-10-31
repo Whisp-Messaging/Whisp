@@ -13,7 +13,7 @@
     height: 100%;
     /* Use a cleaner, slightly softer dark mode palette */
     background: #121212; /* Deep background for contrast */
-    color: #e0e0e0;     
+    color: #e0e0e0;      
     font-family: 'Roboto', sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -461,12 +461,12 @@ const loginScreen=document.getElementById("loginScreen"),
       messageInput=document.getElementById("message"),
       typingIndicator=document.getElementById("typingIndicator"),
       chatStatus=document.getElementById("chatStatus"),
-      settingsBtn = document.getElementById("settingsBtn"), // NEW
-      groupSettingsMenu = document.getElementById("groupSettingsMenu"); // NEW
+      settingsBtn = document.getElementById("settingsBtn"), 
+      groupSettingsMenu = document.getElementById("groupSettingsMenu"); 
 
 let currentUser=null, currentChatId=null, replyTo=null, currentListenerRef=null, otherUserUid=null; 
 let currentChatIsGroup=false, chatMembers={};
-let typingTimer=null, typingStatusRef=null; 
+let typingTimer=null, typingStatusRef=null, currentTypingListener = null; // ADDED currentTypingListener
 
 let activeMessageListeners = new Set();
 
@@ -649,7 +649,7 @@ async function loadChats(){
                  let lastMsg = null;
                  msgSnap.forEach(child => lastMsg = child.val());
                  if (lastMsg) {
-                     lastMessageText = lastMsg.text;
+                     lastMessageText = lastMsg.text; 
                  }
              }
           }
@@ -733,7 +733,10 @@ async function openChat(id,name){
 
   show(chatScreen);
 
+  // --- CRITICAL FIX 1: Cleanup old listeners on openChat ---
   if(currentListenerRef){ off(currentListenerRef); currentListenerRef=null; }
+  if(currentTypingListener){ off(ref(db, "typing/" + id), currentTypingListener); currentTypingListener = null; }
+  // --- END CRITICAL FIX 1 ---
 
   const chatSnap=await get(ref(db,"chats/"+id));
   if (!chatSnap.exists()) return;
@@ -741,7 +744,7 @@ async function openChat(id,name){
   const chat=chatSnap.val();
   currentChatIsGroup = chat.isGroup || false;
   
-  if (currentChatIsGroup) { // NEW: Show settings button for groups
+  if (currentChatIsGroup) { // Show settings button for groups
       settingsBtn.style.display = 'block';
   }
 
@@ -771,7 +774,7 @@ async function openChat(id,name){
     }
   }
   
-  // --- Presence Listener for DM Status ---
+  // --- Presence Listener for DM Status (No change needed here) ---
   if (otherUserUid) {
       const presenceRef = ref(db, 'presence/' + otherUserUid);
       onValue(presenceRef, (snapshot) => {
@@ -802,9 +805,16 @@ async function openChat(id,name){
   // --- End Presence Listener ---
 
 
-  // --- Typing Indicator Listener ---
+  // --- CRITICAL FIX 2: Typing Indicator Listener ---
   const typingRef = ref(db, "typing/" + id);
-  onValue(typingRef, (snapshot) => {
+  
+  // Assign the listener function to currentTypingListener so it can be cleaned up later
+  currentTypingListener = onValue(typingRef, (snapshot) => {
+      // Add a guard clause to ensure the listener only acts on the currently open chat
+      if (currentChatId !== id) {
+          return;
+      }
+      
       if(!snapshot.exists()) {
           typingIndicator.textContent = "";
           return;
@@ -817,15 +827,18 @@ async function openChat(id,name){
           const uid = child.key;
           const timestamp = child.val();
           
+          // Check if the timestamp is recent (within 2 seconds)
           if(uid !== currentUser.uid && (now - timestamp) < 2000) {
-              const uname = chatMembers[uid] || "Someone";
+              // Only display the username in groups, not DMs
+              const uname = currentChatIsGroup ? (chatMembers[uid] || "Someone") : "";
               typingUsers.push(uname);
           }
       });
       
       if(typingUsers.length > 0) {
           if(typingUsers.length === 1) {
-              typingIndicator.textContent = `${typingUsers[0]} is typing...`;
+              const namePart = currentChatIsGroup ? typingUsers[0] : (otherUserUid ? document.getElementById("chatName").textContent : "Someone");
+              typingIndicator.textContent = `${namePart} is typing...`.trim();
           } else if(typingUsers.length === 2) {
               typingIndicator.textContent = `${typingUsers.join(' and ')} are typing...`;
           } else {
@@ -835,6 +848,7 @@ async function openChat(id,name){
           typingIndicator.textContent = "";
       }
   });
+  // --- END CRITICAL FIX 2 ---
 
 
   // mark messages as read and set lastRead
@@ -984,6 +998,13 @@ document.getElementById("backBtn").onclick=()=>{
   currentChatId=null;
   if(currentListenerRef){off(currentListenerRef); currentListenerRef=null;}
   
+  // --- CRITICAL FIX 3: Cleanup typing listener on backBtn click ---
+  if(currentTypingListener){ 
+    off(ref(db, "typing/" + currentChatId), currentTypingListener); 
+    currentTypingListener = null; 
+  }
+  // --- END CRITICAL FIX 3 ---
+
   // Hide settings elements
   settingsBtn.style.display = 'none'; 
   groupSettingsMenu.style.display = 'none';
@@ -1107,12 +1128,11 @@ document.getElementById("newDmBtn").onclick=async()=>{
 };
 
 
-// --- GROUP BUTTON (Still works using the findUserByUsername helper) ---
 document.getElementById("groupBtn").onclick=async()=>{
   const name=prompt("Group name:");
   if(!name)return;
   const input=prompt("Enter usernames (comma-separated):");
-  const usernames=input?input.split(",").map(u=>u.trim()):[];
+  const usernames=input?input.split(",").map(u=>u.trim()).filter(u => u !== ''):[];
   if (usernames.length === 0) return alert("Group must have members.");
 
   const memberIds=[currentUser.uid];
@@ -1157,7 +1177,7 @@ document.getElementById("groupBtn").onclick=async()=>{
   loadChats();
 };
 
-// --- NEW GROUP SETTINGS LOGIC ---
+// --- GROUP SETTINGS LOGIC ---
 
 // Toggle visibility of the settings menu
 settingsBtn.onclick = () => {
@@ -1175,7 +1195,7 @@ document.addEventListener('click', (e) => {
 });
 
 
-document.getElementById('renameGroupBtn').onclick = async () => {
+document.getElementById("renameGroupBtn").onclick = async () => {
     if (!currentChatId || !currentChatIsGroup) return;
     groupSettingsMenu.style.display = 'none';
 
@@ -1207,7 +1227,8 @@ document.getElementById('renameGroupBtn').onclick = async () => {
     }
 };
 
-document.getElementById('addMembersBtn').onclick = async () => {
+
+document.getElementById("addMembersBtn").onclick = async () => {
     if (!currentChatId || !currentChatIsGroup) return;
     groupSettingsMenu.style.display = 'none';
 
@@ -1309,7 +1330,7 @@ function listenForUnread(){
         if(!m || !m.sender || m.sender === currentUser.uid) {
            return;
         }
-
+        
         const messageSnippet = m.text.length > 50 ? m.text.slice(0, 50) + '...' : m.text;
 
         // Update last message time and text
@@ -1328,8 +1349,9 @@ function listenForUnread(){
             loadChats(); 
 
             const chatDiv = [...chatList.children].find(d => d.dataset.id === chatId);
-            const title = chatDiv ? chatDiv.querySelector('div:first-child').firstChild.textContent.trim() : "New message";
-            showNotification(title, m.text, chatId);
+            // This is a rough way to get the chat name from the UI, safer to re-fetch from data or userChats
+            const title = chatDiv ? chatDiv.querySelector('div:first-child').firstChild.textContent.trim() : "New message"; 
+            showNotification(title, m.text || "New Message", chatId);
 
           }
         }).catch(()=>{});
