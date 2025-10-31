@@ -466,7 +466,8 @@ const loginScreen=document.getElementById("loginScreen"),
 
 let currentUser=null, currentChatId=null, replyTo=null, currentListenerRef=null, otherUserUid=null; 
 let currentChatIsGroup=false, chatMembers={};
-let typingTimer=null, typingStatusRef=null, currentTypingListener = null; // ADDED currentTypingListener
+// TRACKING all three types of listeners for proper cleanup
+let typingTimer=null, typingStatusRef=null, currentTypingListener = null, currentPresenceListener = null; 
 
 let activeMessageListeners = new Set();
 
@@ -720,6 +721,27 @@ function stopTyping(){
 async function openChat(id,name){
   stopTyping(); 
   
+  // --- CRITICAL FIX 1: Cleanup old listeners on openChat ---
+  // Save the old chat ID and other UID for correct cleanup before overwriting
+  const oldChatId = currentChatId;
+  const oldOtherUserUid = otherUserUid;
+
+  if(currentListenerRef){ off(currentListenerRef); currentListenerRef=null; }
+  
+  // Clean up the previous typing listener using the old chat ID
+  if(currentTypingListener && oldChatId){ 
+    off(ref(db, "typing/" + oldChatId), currentTypingListener); 
+    currentTypingListener = null; 
+  }
+  
+  // Clean up the previous presence listener using the old other UID
+  if (currentPresenceListener && oldOtherUserUid) {
+    off(ref(db, 'presence/' + oldOtherUserUid), currentPresenceListener);
+    currentPresenceListener = null;
+  }
+  // --- END CRITICAL FIX 1 ---
+
+  // Reset/Set New Chat Context
   currentChatId=id;
   document.getElementById("chatName").textContent=name;
   messagesDiv.innerHTML="";
@@ -727,16 +749,11 @@ async function openChat(id,name){
   chatStatus.textContent = ""; 
   chatStatus.classList.remove("online");
   chatMembers = {}; 
-  otherUserUid = null; 
-  groupSettingsMenu.style.display = 'none'; // Hide menu on chat open
-  settingsBtn.style.display = 'none'; // Hide button by default
+  otherUserUid = null; // Will be set below
+  groupSettingsMenu.style.display = 'none'; 
+  settingsBtn.style.display = 'none'; 
 
   show(chatScreen);
-
-  // --- CRITICAL FIX 1: Cleanup old listeners on openChat ---
-  if(currentListenerRef){ off(currentListenerRef); currentListenerRef=null; }
-  if(currentTypingListener){ off(ref(db, "typing/" + id), currentTypingListener); currentTypingListener = null; }
-  // --- END CRITICAL FIX 1 ---
 
   const chatSnap=await get(ref(db,"chats/"+id));
   if (!chatSnap.exists()) return;
@@ -744,11 +761,11 @@ async function openChat(id,name){
   const chat=chatSnap.val();
   currentChatIsGroup = chat.isGroup || false;
   
-  if (currentChatIsGroup) { // Show settings button for groups
+  if (currentChatIsGroup) { 
       settingsBtn.style.display = 'block';
   }
 
-  // Determine otherUserUid from userChats data (more reliable)
+  // Determine otherUserUid
   const userChatSnap = await get(ref(db, `userChats/${currentUser.uid}/${id}`));
   const userChatData = userChatSnap.val();
   if (userChatData && userChatData.otherUid) {
@@ -759,7 +776,7 @@ async function openChat(id,name){
   if(chat.members){
     const memberUids = Array.isArray(chat.members) ? chat.members : Object.keys(chat.members);
     
-    // Fallback if otherUid wasn't stored in userChats (old chats)
+    // Fallback for old DMs
     if (!otherUserUid && !currentChatIsGroup && memberUids.length === 2) {
         otherUserUid = memberUids.find(uid => uid !== currentUser.uid);
     }
@@ -774,10 +791,12 @@ async function openChat(id,name){
     }
   }
   
-  // --- Presence Listener for DM Status (No change needed here) ---
+  // --- Presence Listener for DM Status ---
   if (otherUserUid) {
       const presenceRef = ref(db, 'presence/' + otherUserUid);
-      onValue(presenceRef, (snapshot) => {
+      // Store the listener function reference
+      currentPresenceListener = onValue(presenceRef, (snapshot) => {
+          if (currentChatId !== id) return; // Guard clause
           if (!snapshot.exists()) {
               chatStatus.textContent = "";
               chatStatus.classList.remove("online");
@@ -808,10 +827,10 @@ async function openChat(id,name){
   // --- CRITICAL FIX 2: Typing Indicator Listener ---
   const typingRef = ref(db, "typing/" + id);
   
-  // Assign the listener function to currentTypingListener so it can be cleaned up later
+  // Store the listener function reference
   currentTypingListener = onValue(typingRef, (snapshot) => {
-      // Add a guard clause to ensure the listener only acts on the currently open chat
-      if (currentChatId !== id) {
+      // Guard clause to ensure the listener only acts on the currently open chat
+      if (currentChatId !== id) { 
           return;
       }
       
@@ -829,15 +848,15 @@ async function openChat(id,name){
           
           // Check if the timestamp is recent (within 2 seconds)
           if(uid !== currentUser.uid && (now - timestamp) < 2000) {
-              // Only display the username in groups, not DMs
-              const uname = currentChatIsGroup ? (chatMembers[uid] || "Someone") : "";
+              const uname = chatMembers[uid] || "Someone";
               typingUsers.push(uname);
           }
       });
       
       if(typingUsers.length > 0) {
           if(typingUsers.length === 1) {
-              const namePart = currentChatIsGroup ? typingUsers[0] : (otherUserUid ? document.getElementById("chatName").textContent : "Someone");
+              // In DMs, use the chat name (which is the other user's name)
+              const namePart = currentChatIsGroup ? typingUsers[0] : document.getElementById("chatName").textContent;
               typingIndicator.textContent = `${namePart} is typing...`.trim();
           } else if(typingUsers.length === 2) {
               typingIndicator.textContent = `${typingUsers.join(' and ')} are typing...`;
@@ -995,13 +1014,21 @@ document.getElementById("sendBtn").onclick=async()=>{
 document.getElementById("backBtn").onclick=()=>{
   stopTyping();
   
+  const chatToCleanup = currentChatId; // CRITICAL: SAVE the ID before nulling it
+  const otherUserToCleanup = otherUserUid;
+
   currentChatId=null;
   if(currentListenerRef){off(currentListenerRef); currentListenerRef=null;}
   
   // --- CRITICAL FIX 3: Cleanup typing listener on backBtn click ---
-  if(currentTypingListener){ 
-    off(ref(db, "typing/" + currentChatId), currentTypingListener); 
+  if(currentTypingListener && chatToCleanup){ 
+    off(ref(db, "typing/" + chatToCleanup), currentTypingListener); 
     currentTypingListener = null; 
+  }
+  // Clean up presence listener
+  if (currentPresenceListener && otherUserToCleanup) {
+      off(ref(db, 'presence/' + otherUserToCleanup), currentPresenceListener);
+      currentPresenceListener = null;
   }
   // --- END CRITICAL FIX 3 ---
 
