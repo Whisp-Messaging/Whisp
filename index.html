@@ -388,54 +388,6 @@
       font-weight: 500;
       transition: background 0.3s;
   }
-
-  /* --- 5. NEW DM MODAL/SCREEN (Interactive Search) --- */
-  #dmSearchScreen {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: #1e1e1e;
-      z-index: 50;
-      display: none;
-      flex-direction: column;
-  }
-  #dmSearchHeader {
-      display: flex;
-      align-items: center;
-      background: #121212;
-      padding: 10px;
-      border-bottom: 1px solid #333;
-  }
-  #dmSearchInput {
-      flex-grow: 1;
-      padding: 10px;
-      margin-left: 10px;
-      border-radius: 20px;
-      border: none;
-      background: #333;
-      color: white;
-      font-size: 1rem;
-      outline: none;
-  }
-  #searchResults {
-      flex-grow: 1;
-      overflow-y: auto;
-  }
-  .searchResultItem {
-      padding: 15px;
-      border-bottom: 1px solid #333;
-      cursor: pointer;
-      transition: background 0.2s;
-  }
-  .searchResultItem:hover {
-      background: #252526;
-  }
-  .searchResultItem strong {
-      color: #007bff;
-      margin-right: 5px;
-  }
   
   /* --- MEDIA QUERY: DESKTOP/TABLET OPTIMIZATION --- */
   @media (min-width: 700px) {
@@ -548,17 +500,6 @@
       
     </div>
   </section>
-
-  <section id="dmSearchScreen" style="display: none;">
-    <div id="dmSearchHeader">
-      <button id="dmSearchBackBtn">←</button>
-      <input id="dmSearchInput" placeholder="Search for username..." />
-    </div>
-    <div id="searchResults">
-      <p style="padding: 15px; color: #999;">Start typing a username to search...</p>
-      </div>
-  </section>
-
 </main>
 
 <script type="module">
@@ -583,8 +524,7 @@ const db = getDatabase(app);
 const loginScreen=document.getElementById("loginScreen"),
       chatListScreen=document.getElementById("chatListScreen"),
       chatScreen=document.getElementById("chatScreen"),
-      profileScreen=document.getElementById("profileScreen"), // ADDED
-      dmSearchScreen=document.getElementById("dmSearchScreen"), // ADDED
+      profileScreen=document.getElementById("profileScreen"), 
       chatList=document.getElementById("chatList"),
       messagesDiv=document.getElementById("messages"),
       replyBar=document.getElementById("replyBar"),
@@ -603,7 +543,7 @@ let typingTimer=null, typingStatusRef=null, currentTypingListener = null, curren
 let activeMessageListeners = new Set();
 
 // Updated show function to include all screens
-const show=(s)=>{[loginScreen,chatListScreen,chatScreen,profileScreen,dmSearchScreen].forEach(e=>e.classList.remove("active"));s.classList.add("active");}; 
+const show=(s)=>{[loginScreen,chatListScreen,chatScreen,profileScreen].forEach(e=>e.classList.remove("active"));s.classList.add("active");}; 
 
 // --- USER DISPLAY NAME HELPER ---
 async function getUserDisplayName(uid) {
@@ -617,7 +557,6 @@ async function getUserDisplayName(uid) {
 }
 
 // --- PRESENCE HANDLERS ---
-// ... (goOnline and goOffline functions remain unchanged) ...
 function formatLastSeen(timestamp) {
     if (!timestamp) return "";
     const date = new Date(timestamp);
@@ -1176,104 +1115,40 @@ document.getElementById("logoutBtn").onclick=async()=>{
   show(loginScreen);
 };
 
-// --- HELPER FUNCTION TO FIND USER BY USERNAME (Full database scan - now improved with startAt/endAt for partial match) ---
-async function findUsersByPartialUsername(partialUsername) {
-  if (partialUsername.length < 2) return []; // Require at least 2 chars to search
-  
+// --- EXACT MATCH SEARCH (Used for Prompt and Group Chat creation) ---
+async function findUserByUsername(username) {
   const usersRef = ref(db, 'users');
-  const searchNormalized = partialUsername.toLowerCase();
+  const searchNormalized = username.toLowerCase(); 
   
-  // Firebase Realtime Database prefix search hack:
-  // \uf8ff is a high-value Unicode character that ensures the search range includes all keys starting with the prefix.
   const usersQuery = query(
-    usersRef,
-    orderByChild('username'),
-    startAt(searchNormalized),
-    endAt(searchNormalized + "\uf8ff"),
-    limitToLast(10) // Limit results for performance
+      usersRef,
+      orderByChild('username'),
+      equalTo(searchNormalized)
   );
-  
+
   const snap = await get(usersQuery);
-  const results = [];
+  if (!snap.exists()) return null;
   
-  if (snap.exists()) {
-    snap.forEach(child => {
-      const userData = child.val();
-      const uid = child.key;
-      
-      // Filter out current user and ensure they have a username/ID
-      if (uid !== currentUser.uid) {
-        results.push({ uid: uid, ...userData });
-      }
-    });
-  }
-  return results;
+  let result = null;
+  snap.forEach(child => {
+      // The query returns all matches, but since usernames are unique, it should be one
+      result = { uid: child.key, ...child.val() };
+  });
+  
+  return result;
 }
 
-// --- NEW DM BUTTON LOGIC (Opens Search Screen) ---
-document.getElementById("newDmBtn").onclick=()=>{
-  show(dmSearchScreen);
-  document.getElementById("dmSearchInput").value = "";
-  document.getElementById("searchResults").innerHTML = `<p style="padding: 15px; color: #999;">Start typing a username to search...</p>`;
-  document.getElementById("dmSearchInput").focus();
-};
+// --- NEW DM BUTTON LOGIC (REVERTED TO PROMPT) ---
+document.getElementById("newDmBtn").onclick=async()=>{
+  const inputUsername=prompt("Enter the username of the person you want to message:");
+  if(!inputUsername) return;
 
-document.getElementById("dmSearchBackBtn").onclick = () => {
-    show(chatListScreen);
-};
+  const user = await findUserByUsername(inputUsername);
+  if(!user) return alert(`User "${inputUsername}" not found. (Note: username search is case-sensitive for the prompt.)`);
 
-// --- DM SEARCH INPUT HANDLER ---
-const dmSearchInput = document.getElementById("dmSearchInput");
-const searchResultsDiv = document.getElementById("searchResults");
-let searchTimeout;
-
-dmSearchInput.addEventListener('input', () => {
-    clearTimeout(searchTimeout);
-    const queryText = dmSearchInput.value.trim();
-    
-    if (queryText.length < 2) {
-        searchResultsDiv.innerHTML = `<p style="padding: 15px; color: #999;">Keep typing...</p>`;
-        return;
-    }
-
-    searchTimeout = setTimeout(async () => {
-        searchResultsDiv.innerHTML = `<p style="padding: 15px; color: #007bff;">Searching...</p>`;
-        const users = await findUsersByPartialUsername(queryText);
-        renderSearchResults(users);
-    }, 300); // Debounce search
-
-});
-
-function renderSearchResults(users) {
-    if (users.length === 0) {
-        searchResultsDiv.innerHTML = `<p style="padding: 15px; color: #ff0000;">No users found matching this start of the username.</p>`;
-        return;
-    }
-    
-    searchResultsDiv.innerHTML = '';
-    
-    users.forEach(user => {
-        const div = document.createElement("div");
-        div.className = "searchResultItem";
-        
-        const displayName = user.fullName || "N/A";
-
-        div.innerHTML = `
-            <div>
-                <strong>${user.username}</strong>
-                <span style="font-size:0.9rem; color:#ccc;">(${displayName})</span>
-            </div>
-        `;
-        
-        div.onclick = () => createOrOpenDM(user);
-        searchResultsDiv.appendChild(div);
-    });
-}
-
-
-// --- CREATE OR OPEN DM ---
-async function createOrOpenDM(user) {
   const otherUid = user.uid;
+  if(otherUid === currentUser.uid) return alert("You can't start a DM with yourself!");
+  
   const otherDisplayName = await getUserDisplayName(otherUid); 
 
   try {
@@ -1291,10 +1166,10 @@ async function createOrOpenDM(user) {
     }
 
     if (existingChatId) {
+        // If chat exists, just open it
         show(chatListScreen);
         await loadChats();
         openChat(existingChatId, otherDisplayName);
-        document.getElementById("dmSearchScreen").style.display = 'none';
         return;
     }
 
@@ -1334,12 +1209,12 @@ async function createOrOpenDM(user) {
     show(chatListScreen);
     await loadChats();
     openChat(refNew.key, otherDisplayName);
-    document.getElementById("dmSearchScreen").style.display = 'none';
 
   } catch (e) {
     alert("Error creating DM: " + e.message);
   }
-}
+};
+
 
 // --- GROUP BUTTON LOGIC (Unchanged) ---
 document.getElementById("groupBtn").onclick=async()=>{
@@ -1352,7 +1227,6 @@ document.getElementById("groupBtn").onclick=async()=>{
   const memberIds=[currentUser.uid];
   
   for (const uname of usernames) {
-    // NOTE: Group creation still uses the old exact match findUserByUsername for simplicity
     const user = await findUserByUsername(uname); 
     if (user) {
       if (user.uid !== currentUser.uid && !memberIds.includes(user.uid)) {
@@ -1646,30 +1520,6 @@ document.getElementById("changePasswordBtn").onclick = async () => {
         }
     }
 };
-
-// --- OLD EXACT MATCH SEARCH (Kept for Group Chat creation for simplicity) ---
-async function findUserByUsername(username) {
-  const usersRef = ref(db, 'users');
-  const searchNormalized = username.toLowerCase(); 
-  
-  // Use exact match query for group creation
-  const usersQuery = query(
-      usersRef,
-      orderByChild('username'),
-      equalTo(searchNormalized)
-  );
-
-  const snap = await get(usersQuery);
-  if (!snap.exists()) return null;
-  
-  let result = null;
-  snap.forEach(child => {
-      // The query returns all matches, but since usernames are unique, it should be one
-      result = { uid: child.key, ...child.val() };
-  });
-  
-  return result;
-}
 
 
 // service worker registration and permission (Unchanged)
