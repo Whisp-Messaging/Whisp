@@ -415,7 +415,7 @@
     padding: 20px;
     border-bottom: 1px solid #333;
   }
-  #Search input {
+  #adminSearch input {
       flex: 1;
       padding: 10px;
       border-radius: 6px;
@@ -424,7 +424,7 @@
       color: #fff;
       margin-right: 10px;
   }
-  #Search button {
+  #adminSearch button {
       background: #00aaff;
       color: white;
       border: none;
@@ -432,7 +432,7 @@
       border-radius: 6px;
       cursor: pointer;
   }
-  #Results {
+  #adminResults {
       padding: 20px;
       flex: 1;
       overflow-y: auto;
@@ -516,7 +516,7 @@
       <button id="newDmBtn">New DM</button> 
       <button id="groupBtn">New Group</button>
       <button id="profileBtn">Profile</button>
-      <button id="Btn" style="display: none; background: #ff7f00;"> Panel</button> <button id="logoutBtn">Logout</button>
+      <button id="adminBtn" style="display: none; background: #ff7f00;">Admin Panel</button> <button id="logoutBtn">Logout</button>
     </div>
   </section>
   
@@ -574,28 +574,28 @@
     </div>
   </section>
   
-  <section id="Screen" class="screen">
-    <div id="Header">
-        <button id="BackBtn">←</button>
-        <span style="font-size: 1.15rem; font-weight: 600;"> Panel</span>
+  <section id="adminScreen" class="screen">
+    <div id="adminHeader">
+        <button id="adminBackBtn">←</button>
+        <span style="font-size: 1.15rem; font-weight: 600;">Admin Panel</span>
     </div>
-    <div id="Search">
-        <input id="SearchInput" placeholder="Enter username to audit..." />
-        <button id="SearchBtn">Search</button>
+    <div id="adminSearch">
+        <input id="adminSearchInput" placeholder="Enter username to audit..." />
+        <button id="adminSearchBtn">Search</button>
     </div>
-    <div id="Results">
+    <div id="adminResults">
         <p>Search for a user to manage their account and view audit logs.</p>
         <div id="userInfo" style="display: none;">
             <h4>User Details:</h4>
-            <p><strong>UID:</strong> <span id="Uid"></span></p>
-            <p><strong>Username:</strong> <span id="Username"></span></p>
-            <p><strong>Email:</strong> <span id="Email"></span></p>
-            <p><strong>Full Name:</strong> <span id="FullName"></span></p>
-            <p><strong>Last Activity:</strong> <span id="LastSeen"></span></p>
+            <p><strong>UID:</strong> <span id="adminUid"></span></p>
+            <p><strong>Username:</strong> <span id="adminUsername"></span></p>
+            <p><strong>Email:</strong> <span id="adminEmail"></span></p>
+            <p><strong>Full Name:</strong> <span id="adminFullName"></span></p>
+            <p><strong>Last Activity:</strong> <span id="adminLastSeen"></span></p>
             <button id="deleteAccountBtn" style="background: #dc3545; color: white; border: none; padding: 8px 15px; border-radius: 6px; margin-top: 15px;">DELETE ACCOUNT</button>
             
             <h4 style="margin-top: 25px;">Chat Audit Log (Metadata Only):</h4>
-            <div id="ChatLog"></div>
+            <div id="adminChatLog"></div>
         </div>
     </div>
   </section>
@@ -626,8 +626,8 @@ const loginScreen=document.getElementById("loginScreen"),
       chatListScreen=document.getElementById("chatListScreen"),
       chatScreen=document.getElementById("chatScreen"),
       profileScreen=document.getElementById("profileScreen"),
-      Screen=document.getElementById("Screen"), 
-      Btn=document.getElementById("Btn"), 
+      adminScreen=document.getElementById("adminScreen"), 
+      adminBtn=document.getElementById("adminBtn"), 
       chatList=document.getElementById("chatList"),
       messagesDiv=document.getElementById("messages"),
       replyBar=document.getElementById("replyBar"),
@@ -642,13 +642,13 @@ const loginScreen=document.getElementById("loginScreen"),
 let currentUser=null, currentChatId=null, replyTo=null, currentListenerRef=null, otherUserUid=null; 
 let currentChatIsGroup=false, chatMembers={};
 let typingTimer=null, typingStatusRef=null, currentTypingListener = null, currentPresenceListener = null; 
-let is = false; 
+let isAdmin = false; 
 let activeMessageListeners = new Set();
 let currentTargetUid = null; 
-// NEW FLAG FOR USERNAME RACE CONDITION FIX
+// FLAG for username race condition fix (re-implemented robustly)
 let lastRegisteredUsername = null; 
 
-const show=(s)=>{[loginScreen,chatListScreen,chatScreen,profileScreen, Screen].forEach(e=>e.classList.remove("active"));s.classList.add("active");}; 
+const show=(s)=>{[loginScreen,chatListScreen,chatScreen,profileScreen, adminScreen].forEach(e=>e.classList.remove("active"));s.classList.add("active");}; 
 
 // --- USER DISPLAY NAME HELPER (FIXED FOR OLD DATA) ---
 async function getUserDisplayName(uid) {
@@ -662,10 +662,10 @@ async function getUserDisplayName(uid) {
         // 2. Fallback to displayName (if set by a newer process)
         if (userData.displayName) return userData.displayName;
         
-        // 3. Fallback to username (which might be the old capitalized version, e.g., 'Em')
+        // 3. Fallback to username 
         if (userData.username) return userData.username; 
         
-        // 4. Final fallback (e.g., if only email exists)
+        // 4. Final fallback 
         if (userData.email) return userData.email.split('@')[0];
 
         return "Unknown User";
@@ -720,11 +720,12 @@ document.getElementById("loginBtn").onclick = async () => {
     try {
       // 1. Attempt login 
       cred = await signInWithEmailAndPassword(auth, emailVal, passwordVal);
+      // If login is successful, reset the flag
+      lastRegisteredUsername = null; 
       return; 
     } catch (e) {
       // 2. If login fails, attempt registration
       
-      // *** FIX: MUST provide a username for registration ***
       if(!usernameVal) {
         return alert("Login failed. If you are registering, you MUST provide a username.");
       }
@@ -734,17 +735,12 @@ document.getElementById("loginBtn").onclick = async () => {
 
       // --- UNIQUENESS CHECK ---
       const usersRef = ref(db, 'users');
-      const usersQuery = query(usersRef, orderByChild('username'), startAt(normalizedUsername), endAt(normalizedUsername + '\uf8ff'));
+      // Use the exact match query with `equalTo` for precise uniqueness check
+      const usersQuery = query(usersRef, orderByChild('username'), equalTo(normalizedUsername));
       const snap = await get(usersQuery);
       
       if (snap.exists()) {
-        let isMatch = false;
-        snap.forEach(child => {
-            if (child.val().username && child.val().username.toLowerCase() === normalizedUsername) {
-                isMatch = true;
-            }
-        });
-        if (isMatch) return alert(`The username "${finalUsername}" is already taken. Please choose another.`);
+        return alert(`The username "${finalUsername}" is already taken. Please choose another.`);
       }
       // --- END UNIQUENESS CHECK ---
       
@@ -753,10 +749,11 @@ document.getElementById("loginBtn").onclick = async () => {
       
       const uid = cred.user.uid;
       
-      // *** FIX: Store username temporarily for onAuthStateChanged race condition check ***
+      // Store username temporarily for onAuthStateChanged race condition check
       lastRegisteredUsername = normalizedUsername;
       
       // 4. Set user profile and add to /usernames for quick lookup
+      // Note: onAuthStateChanged will complete the profile setup if this is too slow.
       await set(ref(db, "users/" + uid), { 
         username: normalizedUsername, 
         displayName: finalUsername, 
@@ -765,7 +762,7 @@ document.getElementById("loginBtn").onclick = async () => {
       // Add to /usernames node 
       await set(ref(db, "usernames/" + normalizedUsername), uid); 
       
-      // Now that the DB write is finished, we can clear the flag.
+      // Clear the flag after successful registration
       lastRegisteredUsername = null;
     }
   } catch (e) {
@@ -811,21 +808,24 @@ onAuthStateChanged(auth, async user => {
         currentUsername = finalUsernameForDb;
         
         // Set the profile now using the correct username (chosen or default). 
-        // This ensures the profile exists for the session.
-// ... (Your code continues here before the change)
-    // This ensures the profile exists for the session.
-      await set(ref(db, "users/" + user.uid), { 
-        username: finalUsernameForDb, 
-        email: user.email 
-      });
-      const ADMIN_USERNAMES = ["admin", "clipscomb"];;
+        await set(ref(db, "users/" + user.uid), { 
+             username: finalUsernameForDb, 
+             email: user.email 
+        });
+    }
+
+    // --- ADMIN ACCESS CHECK (UPDATED) ---
+    const ADMIN_USERNAMES = ["admin", "clipscomb"]; 
+    isAdmin = ADMIN_USERNAMES.includes(currentUsername);
+    // -----------------------------------
     
-      adminBtn.style.display = isAdmin ? 'block' : 'none';
-      await loadChats();
-      goOnline();       
-      show(chatListScreen);
-      listenForUnread();
-    } else {
+    adminBtn.style.display = isAdmin ? 'block' : 'none';
+
+    await loadChats();
+    goOnline(); 
+    show(chatListScreen);
+    listenForUnread();
+  } else {
     currentUser=null;
     isAdmin = false;
     adminBtn.style.display = 'none';
