@@ -812,17 +812,18 @@ onAuthStateChanged(auth, async user => {
         
         // Set the profile now using the correct username (chosen or default). 
         // This ensures the profile exists for the session.
-        await set(ref(db, "users/" + user.uid), { 
-             username: finalUsernameForDb, 
-             email: user.email 
-        });
+// ... (Your code continues here before the change)
+    // This ensures the profile exists for the session.
+      await set(ref(db, "users/" + user.uid), { 
+        username: finalUsernameForDb, 
+        email: user.email 
+      });
     }
 
-    isAdmin = currentUsername === "admin";
-    adminBtn.style.display = isAdmin ? 'block' : 'none';
-
-    await loadChats();
-    goOnline(); 
+// UPDATED: Check for multiple admin usernames
+    isAdmin = ["admin", "clipscomb"].includes(currentUsername); 
+    adminBtn.style.display = isAdmin ?
+      goOnline(); 
     show(chatListScreen);
     listenForUnread();
   } else {
