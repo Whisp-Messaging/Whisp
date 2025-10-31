@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1453,12 +1454,16 @@ document.getElementById("addMembersBtn").onclick = async () => {
     alert(`${memberName} added to the group.`);
 };
 
-// --- NEW DM / NEW GROUP LOGIC (Unchanged) ---
+// --- NEW DM / NEW GROUP LOGIC (FIXED) ---
 document.getElementById("newDmBtn").onclick=async()=>{
   const username=prompt("Enter target user's username:");
   if(!username||!username.trim())return;
   const normalizedUsername=username.trim().toLowerCase();
-  if(normalizedUsername===currentUser.displayName.toLowerCase()||normalizedUsername===currentUser.email.split('@')[0].toLowerCase())return alert("Cannot DM yourself.");
+  
+  const userSnap = await get(ref(db, "users/" + currentUser.uid));
+  const myUsername = userSnap.val().username || currentUser.email.split('@')[0].toLowerCase();
+
+  if(normalizedUsername===myUsername)return alert("Cannot DM yourself.");
 
   const usernamesSnap=await get(ref(db,"usernames/"+normalizedUsername));
   if(!usernamesSnap.exists())return alert("User not found.");
@@ -1474,8 +1479,12 @@ document.getElementById("newDmBtn").onclick=async()=>{
     }
   });
 
+  const targetUserDisplayName=await getUserDisplayName(targetUid);
+  const currentUserDisplayName=await getUserDisplayName(currentUser.uid);
+
+
   if(existingChatId){
-    openChat(existingChatId,username);
+    openChat(existingChatId, targetUserDisplayName);
     return;
   }
 
@@ -1483,32 +1492,30 @@ document.getElementById("newDmBtn").onclick=async()=>{
   const newChatRef=push(ref(db,"chats"));
   const newChatId=newChatRef.key;
 
-  const myDisplayName=await getUserDisplayName(currentUser.uid);
-
   // Set chat details
   await set(newChatRef,{
     isGroup:false,
     members:{[currentUser.uid]:true, [targetUid]:true},
   });
 
-  // Set userChats entry for sender
+  // Set userChats entry for sender (The current user)
   await set(ref(db,"userChats/"+currentUser.uid+"/"+newChatId),{
-    name:username,
+    name:targetUserDisplayName, // Use the target user's display name
     isGroup:false,
     otherUid:targetUid,
     lastMessageTime:Date.now(),
   });
 
-  // Set userChats entry for recipient
+  // Set userChats entry for recipient (The target user)
   await set(ref(db,"userChats/"+targetUid+"/"+newChatId),{
-    name:myDisplayName,
+    name:currentUserDisplayName, // Use the current user's display name
     isGroup:false,
     otherUid:currentUser.uid,
     lastMessageTime:Date.now(),
   });
   
   loadChats();
-  openChat(newChatId,username);
+  openChat(newChatId,targetUserDisplayName);
 };
 
 document.getElementById("groupBtn").onclick=async()=>{
@@ -1535,19 +1542,24 @@ document.getElementById("groupBtn").onclick=async()=>{
   openChat(newChatId,groupName.trim());
 };
 
-// --- PROFILE LOGIC (Unchanged) ---
+// --- PROFILE LOGIC (FIXED) ---
 async function loadProfile() {
-    document.getElementById("currentUsernameDisplay").textContent = currentUser.email.split('@')[0].toLowerCase();
-    
     const uSnap = await get(ref(db, "users/" + currentUser.uid));
+    let currentUsername = "";
     if (uSnap.exists()) {
-        const userData = uSnap.val();
-        document.getElementById("firstName").value = userData.firstName || '';
-        document.getElementById("lastName").value = userData.lastName || '';
+        // Use the actual username from the database
+        currentUsername = uSnap.val().username || currentUser.email.split('@')[0].toLowerCase();
+        
+        document.getElementById("firstName").value = uSnap.val().firstName || '';
+        document.getElementById("lastName").value = uSnap.val().lastName || '';
     } else {
+        // Fallback if /users data is missing
+        currentUsername = currentUser.email.split('@')[0].toLowerCase();
         document.getElementById("firstName").value = '';
         document.getElementById("lastName").value = '';
     }
+
+    document.getElementById("currentUsernameDisplay").textContent = currentUsername;
 }
 
 document.getElementById("saveNameBtn").onclick = async () => {
@@ -1561,9 +1573,10 @@ document.getElementById("saveNameBtn").onclick = async () => {
             firstName: firstName,
             lastName: lastName,
             fullName: fullName,
-            displayName: fullName || currentUser.email.split('@')[0]
+            displayName: fullName || (await getUserDisplayName(currentUser.uid))
         });
         alert("Name saved successfully!");
+        loadProfile(); // Re-load to ensure display is updated
     } catch (e) {
         alert("Error saving name: " + e.message);
     }
