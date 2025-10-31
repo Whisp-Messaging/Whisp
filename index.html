@@ -644,9 +644,8 @@ let currentChatIsGroup=false, chatMembers={};
 let typingTimer=null, typingStatusRef=null, currentTypingListener = null, currentPresenceListener = null; 
 let isAdmin = false; 
 let activeMessageListeners = new Set();
-let currentTargetUid = null; // New variable to hold the UID of the user currently being audited
+let currentTargetUid = null; 
 
-// Updated show function to include all screens
 const show=(s)=>{[loginScreen,chatListScreen,chatScreen,profileScreen, adminScreen].forEach(e=>e.classList.remove("active"));s.classList.add("active");}; 
 
 // --- USER DISPLAY NAME HELPER (FIXED FOR OLD DATA) ---
@@ -707,7 +706,7 @@ async function goOffline() {
     await set(isOnlineRef, Date.now());
 }
 
-// --- LOGIN HANDLER ---
+// --- LOGIN/REGISTER HANDLER (FIXED NEW ACCOUNT REGISTRATION) ---
 document.getElementById("loginBtn").onclick = async () => {
   const emailVal = document.getElementById("email").value.trim();
   const passwordVal = document.getElementById("password").value.trim();
@@ -722,24 +721,24 @@ document.getElementById("loginBtn").onclick = async () => {
       return; 
     } catch (e) {
       // 2. If login fails, attempt registration
+      
+      // *** FIX: MUST provide a username for registration ***
       if(!usernameVal) {
-        return alert("Login failed. If you are registering, please provide a username.");
+        return alert("Login failed. If you are registering, you MUST provide a username.");
       }
       
       const finalUsername = usernameVal;
       const normalizedUsername = finalUsername.toLowerCase();
 
       // --- UNIQUENESS CHECK ---
-      // Query to check if the normalized username already exists
       const usersRef = ref(db, 'users');
-      // Using range search for a robust check
       const usersQuery = query(usersRef, orderByChild('username'), startAt(normalizedUsername), endAt(normalizedUsername + '\uf8ff'));
       const snap = await get(usersQuery);
       
       if (snap.exists()) {
         let isMatch = false;
         snap.forEach(child => {
-            if (child.val().username.toLowerCase() === normalizedUsername) {
+            if (child.val().username && child.val().username.toLowerCase() === normalizedUsername) {
                 isMatch = true;
             }
         });
@@ -754,11 +753,11 @@ document.getElementById("loginBtn").onclick = async () => {
       
       // 4. Set user profile and add to /usernames for quick lookup
       await set(ref(db, "users/" + uid), { 
-        username: normalizedUsername, // Store normalized username for searching/querying
-        displayName: finalUsername, // Store original case for display (optional)
+        username: normalizedUsername, 
+        displayName: finalUsername, 
         email: emailVal 
       });
-      // Add to /usernames node (OPTIONAL, for faster lookups if you update all logic)
+      // Add to /usernames node 
       await set(ref(db, "usernames/" + normalizedUsername), uid); 
     }
   } catch (e) {
@@ -781,17 +780,14 @@ onAuthStateChanged(auth, async user => {
         currentUsername = userData.username || ""; 
         
         if (!userData.username) {
-             // Use part of their email as a default username if none exists
              const defaultUsername = user.email.split('@')[0].toLowerCase();
              currentUsername = defaultUsername;
-             // Update the database immediately for correction
              await update(ref(db, "users/" + user.uid), {
-                 username: defaultUsername // Normalized
+                 username: defaultUsername 
              });
         }
         
     } else {
-        // Handle a user only in Auth, create basic /users node
         const defaultUsername = user.email.split('@')[0].toLowerCase();
         currentUsername = defaultUsername;
         await set(ref(db, "users/" + user.uid), { 
@@ -799,9 +795,7 @@ onAuthStateChanged(auth, async user => {
              email: user.email 
         });
     }
-    // --- END: CRITICAL FIX FOR EXISTING ACCOUNTS ---
 
-    // NEW: Admin Check - Check if the logged-in user's username is 'admin' (case-insensitive due to normalization)
     isAdmin = currentUsername === "admin";
     adminBtn.style.display = isAdmin ? 'block' : 'none';
 
@@ -821,7 +815,7 @@ onAuthStateChanged(auth, async user => {
   }
 });
 
-// --- LOAD CHATS (FIXED FOR OLD DMS) ---
+// --- LOAD CHATS (FIXED FOR OLD ARRAY MEMBERS) ---
 async function loadChats(){
   chatList.innerHTML="";
   
@@ -842,8 +836,12 @@ async function loadChats(){
           let memberUids = [];
           
           if (chat.members) {
-            // Convert members map to array of UIDs
-            memberUids = Object.keys(chat.members);
+            // *** FIX: Handle both old array format and new object format for members ***
+            if (Array.isArray(chat.members)) { 
+                memberUids = chat.members; // Old format: array of UIDs
+            } else { 
+                memberUids = Object.keys(chat.members); // New format: map of UIDs to true
+            }
             isMember = memberUids.includes(currentUser.uid);
           }
 
@@ -852,31 +850,28 @@ async function loadChats(){
           let chatName = data.name; 
           let isDM = data.isGroup === false;
           
-          // CRITICAL FIX: Determine if it's a DM based on member count if 'isGroup' is not set
+          // Determine if it's a DM based on member count if 'isGroup' is not set
           if (!data.isGroup && memberUids.length === 2) {
               isDM = true;
           }
           
           let updateNeeded = false; 
 
-          // --- FIX: Logic to correctly find otherUid and set chatName for DMs ---
+          // --- Logic to correctly find otherUid and set chatName for DMs ---
           let finalOtherUid = data.otherUid;
           
           if (isDM) {
-              // 1. If otherUid is not in metadata, find it from the chat members
               if (!finalOtherUid) {
                   finalOtherUid = memberUids.find(uid => uid !== currentUser.uid);
                   if (finalOtherUid) {
-                      updateNeeded = true; // Mark to correct the metadata
+                      updateNeeded = true; 
                   }
               }
               
-              // 2. If the otherUid is found, set the correct display name
               if (finalOtherUid) { 
                   const correctName = await getUserDisplayName(finalOtherUid);
                   chatName = correctName; 
                   
-                  // Mark to correct the name in the userChats metadata
                   if (data.name !== correctName || !data.name) { 
                       updateNeeded = true;    
                   }
@@ -908,7 +903,7 @@ async function loadChats(){
               unread: data.unread,
               updateNeeded: updateNeeded,
               lastMessageText: lastMessageText,
-              finalOtherUid: finalOtherUid // Pass this for metadata correction
+              finalOtherUid: finalOtherUid 
           };
       });
       chatPromises.push(chatPromise);
@@ -934,10 +929,8 @@ async function loadChats(){
     div.onclick = () => openChat(item.id, item.name); 
     chatList.append(div);
     
-    // Perform the correction if needed
     if (item.updateNeeded) {
         const updateData = { name: item.name };
-        // Only correct otherUid if we actually found a valid one
         if (item.finalOtherUid) updateData.otherUid = item.finalOtherUid; 
         
         correctionPromises.push(
@@ -970,7 +963,6 @@ function stopTyping(){
 async function openChat(id,name){
   stopTyping(); 
   
-  // --- CRITICAL FIX 1: Cleanup old listeners on openChat ---
   const oldChatId = currentChatId;
   const oldOtherUserUid = otherUserUid;
 
@@ -985,7 +977,6 @@ async function openChat(id,name){
     off(ref(db, 'presence/' + oldOtherUserUid), currentPresenceListener);
     currentPresenceListener = null;
   }
-  // --- END CRITICAL FIX 1 ---
 
   // Reset/Set New Chat Context
   currentChatId=id;
@@ -1020,7 +1011,13 @@ async function openChat(id,name){
   
   // load member display names
   if(chat.members){
-    const memberUids = Object.keys(chat.members);
+    let memberUids = [];
+    // *** FIX: Handle both old array format and new object format for members ***
+    if (Array.isArray(chat.members)) {
+        memberUids = chat.members;
+    } else {
+        memberUids = Object.keys(chat.members);
+    }
     
     // Fallback for old DMs
     if (!otherUserUid && !currentChatIsGroup && memberUids.length === 2) {
@@ -1226,7 +1223,12 @@ document.getElementById("sendBtn").onclick=async()=>{
   // Update lastMessageTime and lastMessageText for ALL chat members
   const chatSnap = await get(ref(db, "chats/" + currentChatId));
   const chat = chatSnap.val();
-  let memberUids = Object.keys(chat.members);
+  
+  let memberUids = [];
+  if (chat.members) {
+    if (Array.isArray(chat.members)) { memberUids = chat.members; } 
+    else { memberUids = Object.keys(chat.members); }
+  }
 
   const userChatUpdates = {};
   const messageSnippet = text.length > 50 ? text.slice(0, 50) + '...' : text;
@@ -1287,13 +1289,10 @@ document.getElementById("logoutBtn").onclick=async()=>{
 // --- EXACT MATCH SEARCH (CORE LOGIC FOR ADMIN SEARCH - FIXED FOR OLD USERS) ---
 async function findUserByUsername(username) {
   const usersRef = ref(db, 'users');
-  // Normalize search input to lowercase
   const searchNormalized = username.toLowerCase(); 
   
-  // Create a search key slightly beyond the target string (e.g., 'em' -> 'em\uf8ff')
   const endKey = searchNormalized + '\uf8ff'; 
   
-  // Query for users whose username STARTS with the normalized input
   const usersQuery = query(
       usersRef,
       orderByChild('username'),
@@ -1306,17 +1305,13 @@ async function findUserByUsername(username) {
   
   let result = null;
   
-  // Iterate through results to find an exact match 
   snap.forEach(child => {
       const userData = child.val();
-      // Use toLowerCase().startsWith() for case-insensitive matching that prioritizes the closest match
-      if (userData.username.toLowerCase().startsWith(searchNormalized)) {
-          // If the full username matches the search (e.g., 'em' searching for 'em'), return it.
+      if (userData.username && userData.username.toLowerCase().startsWith(searchNormalized)) {
           if (userData.username.toLowerCase() === searchNormalized) {
              result = { uid: child.key, ...userData };
-             return true; // Stop iterating
+             return true; 
           }
-          // Otherwise, just keep the first result that starts with the term (e.g., 'emily' searching for 'em')
           if (!result) {
             result = { uid: child.key, ...userData };
           }
@@ -1354,7 +1349,6 @@ document.getElementById("newDmBtn").onclick=async()=>{
     }
 
     if (existingChatId) {
-        // If chat exists, just open it
         show(chatListScreen);
         await loadChats();
         openChat(existingChatId, otherDisplayName);
@@ -1369,7 +1363,7 @@ document.getElementById("newDmBtn").onclick=async()=>{
     await set(refNew, {
       name: otherDisplayName, 
       isGroup: false,
-      members: newMembersMap
+      members: newMembersMap // New format: map
     });
     
     const currentUserDisplayName = await getUserDisplayName(currentUser.uid);
@@ -1480,7 +1474,12 @@ document.getElementById("renameGroupBtn").onclick = async () => {
         await update(ref(db, `chats/${currentChatId}`), { name: newName });
         const chatSnap = await get(ref(db, `chats/${currentChatId}`));
         const chat = chatSnap.val();
-        let memberUids = Object.keys(chat.members || {});
+        
+        let memberUids = [];
+        if (chat.members) {
+            if (Array.isArray(chat.members)) { memberUids = chat.members; } 
+            else { memberUids = Object.keys(chat.members); }
+        }
         
         const userChatUpdates = {};
         memberUids.forEach(uid => {
@@ -1511,6 +1510,12 @@ document.getElementById("addMembersBtn").onclick = async () => {
         const chatSnap = await get(ref(db, `chats/${currentChatId}`));
         const chat = chatSnap.val();
         let currentMembersMap = chat.members || {};
+        
+        // Convert old array to new map for manipulation
+        if(Array.isArray(currentMembersMap)) {
+             currentMembersMap = currentMembersMap.reduce((acc, uid) => { acc[uid] = true; return acc; }, {});
+        }
+
         let membersUpdated = false;
 
         const userChatUpdates = {};
@@ -1539,11 +1544,11 @@ document.getElementById("addMembersBtn").onclick = async () => {
         }
 
         if (membersUpdated) {
-            await update(ref(db, `chats/${currentChatId}`), { members: currentMembersMap });
+            // Write back the new member map (this will upgrade the member structure if it was an old array)
+            await update(ref(db, `chats/${currentChatId}`), { members: currentMembersMap }); 
             await update(ref(db), userChatUpdates);
             
             alert(`Added new members: ${newMembers.join(', ')}`);
-            // Refresh current chat and chat list
             openChat(currentChatId, groupName); 
             loadChats(); 
         } else {
@@ -1580,7 +1585,8 @@ function listenForUnread(){
       
       let isMember = false;
       if (chat.members) {
-        isMember = Object.keys(chat.members).includes(currentUser.uid);
+        if (Array.isArray(chat.members)) { isMember = chat.members.includes(currentUser.uid); }
+        else { isMember = Object.keys(chat.members).includes(currentUser.uid); }
       }
 
       if(!isMember) return;
@@ -1737,7 +1743,7 @@ document.getElementById("adminSearchBtn").onclick = async () => {
         document.getElementById("adminLastSeen").textContent = '';
         document.getElementById("adminChatLog").innerHTML = '<p style="color: #999;">No user data available.</p>';
         document.getElementById("deleteAccountBtn").style.display = 'none';
-        document.getElementById("userInfo").style.display = 'block'; // Show the box with "User Not Found"
+        document.getElementById("userInfo").style.display = 'block'; 
         currentTargetUid = null;
         return;
     }
@@ -1749,11 +1755,9 @@ document.getElementById("adminSearchBtn").onclick = async () => {
 async function displayAdminAudit(user) {
     const uid = user.uid;
     
-    // 1. Get last active status
     const presenceSnap = await get(ref(db, 'presence/' + uid));
     const lastSeen = formatLastSeen(presenceSnap.exists() ? presenceSnap.val() : null);
 
-    // 2. Display User Info
     document.getElementById("adminUid").textContent = uid;
     document.getElementById("adminUsername").textContent = user.displayName || user.username;
     document.getElementById("adminEmail").textContent = user.email || 'N/A';
@@ -1762,11 +1766,9 @@ async function displayAdminAudit(user) {
     document.getElementById("deleteAccountBtn").style.display = 'block';
     document.getElementById("userInfo").style.display = 'block';
 
-    // 3. Load Chat Metadata Log
     const logDiv = document.getElementById("adminChatLog");
     logDiv.innerHTML = '<p>Loading chat metadata...</p>';
 
-    // This query uses the /userChats node confirmed in your database structure
     const userChatsSnap = await get(ref(db, `userChats/${uid}`));
     
     if (!userChatsSnap.exists()) {
@@ -1784,7 +1786,6 @@ async function displayAdminAudit(user) {
         let chatType = chatData.isGroup ? 'GROUP' : 'DM';
         let chatPartner = chatData.isGroup ? '' : (chatData.name || 'Unknown User');
 
-        // Only include items with required metadata
         if (chatData.lastMessageTime) {
             chatAuditItems.push({
                 chatId: chatId,
@@ -1796,7 +1797,6 @@ async function displayAdminAudit(user) {
         }
     });
 
-    // Sort by last message time
     chatAuditItems.sort((a, b) => b.lastTime - a.lastTime);
 
     if (chatAuditItems.length === 0) {
@@ -1829,26 +1829,17 @@ document.getElementById("deleteAccountBtn").onclick = async () => {
     }
 
     try {
-        // 1. Delete user from the 'users' table
         await remove(ref(db, `users/${targetUid}`));
-        
-        // 2. Delete user's chat list
         await remove(ref(db, `userChats/${targetUid}`));
-
-        // 3. Clear presence status
         await remove(ref(db, `presence/${targetUid}`));
         
-        // 4. Delete from /usernames node (if implemented)
         const uSnap = await get(ref(db, "users/" + targetUid));
         const usernameToDelete = uSnap.val()?.username;
         if(usernameToDelete) {
              await remove(ref(db, `usernames/${usernameToDelete}`));
         }
-
-
-        // 5. Clean up the user's Auth record (Requires Admin SDK on a server, client SDK can only delete current user)
         
-        alert(`Account for "${targetUsername}" (UID: ${targetUid}) has been successfully removed from the database (users, userChats, presence, usernames). \n\n🔒 EDUCATIONAL NOTE: In a real system, server-side code (Admin SDK) is *required* to delete the core login authentication record, which was not removed here.`);
+        alert(`Account for "${targetUsername}" (UID: ${targetUid}) has been successfully removed from the database (users, userChats, presence, usernames).`);
         
         document.getElementById("adminSearchInput").value = '';
         document.getElementById("userInfo").style.display = 'none';
