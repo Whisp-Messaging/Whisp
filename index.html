@@ -415,7 +415,7 @@
     padding: 20px;
     border-bottom: 1px solid #333;
   }
-  #adminSearch input {
+  #Search input {
       flex: 1;
       padding: 10px;
       border-radius: 6px;
@@ -424,7 +424,7 @@
       color: #fff;
       margin-right: 10px;
   }
-  #adminSearch button {
+  #Search button {
       background: #00aaff;
       color: white;
       border: none;
@@ -432,7 +432,7 @@
       border-radius: 6px;
       cursor: pointer;
   }
-  #adminResults {
+  #Results {
       padding: 20px;
       flex: 1;
       overflow-y: auto;
@@ -516,7 +516,7 @@
       <button id="newDmBtn">New DM</button> 
       <button id="groupBtn">New Group</button>
       <button id="profileBtn">Profile</button>
-      <button id="adminBtn" style="display: none; background: #ff7f00;">Admin Panel</button> <button id="logoutBtn">Logout</button>
+      <button id="Btn" style="display: none; background: #ff7f00;"> Panel</button> <button id="logoutBtn">Logout</button>
     </div>
   </section>
   
@@ -574,28 +574,28 @@
     </div>
   </section>
   
-  <section id="adminScreen" class="screen">
-    <div id="adminHeader">
-        <button id="adminBackBtn">←</button>
-        <span style="font-size: 1.15rem; font-weight: 600;">Admin Panel</span>
+  <section id="Screen" class="screen">
+    <div id="Header">
+        <button id="BackBtn">←</button>
+        <span style="font-size: 1.15rem; font-weight: 600;"> Panel</span>
     </div>
-    <div id="adminSearch">
-        <input id="adminSearchInput" placeholder="Enter username to audit..." />
-        <button id="adminSearchBtn">Search</button>
+    <div id="Search">
+        <input id="SearchInput" placeholder="Enter username to audit..." />
+        <button id="SearchBtn">Search</button>
     </div>
-    <div id="adminResults">
+    <div id="Results">
         <p>Search for a user to manage their account and view audit logs.</p>
         <div id="userInfo" style="display: none;">
             <h4>User Details:</h4>
-            <p><strong>UID:</strong> <span id="adminUid"></span></p>
-            <p><strong>Username:</strong> <span id="adminUsername"></span></p>
-            <p><strong>Email:</strong> <span id="adminEmail"></span></p>
-            <p><strong>Full Name:</strong> <span id="adminFullName"></span></p>
-            <p><strong>Last Activity:</strong> <span id="adminLastSeen"></span></p>
+            <p><strong>UID:</strong> <span id="Uid"></span></p>
+            <p><strong>Username:</strong> <span id="Username"></span></p>
+            <p><strong>Email:</strong> <span id="Email"></span></p>
+            <p><strong>Full Name:</strong> <span id="FullName"></span></p>
+            <p><strong>Last Activity:</strong> <span id="LastSeen"></span></p>
             <button id="deleteAccountBtn" style="background: #dc3545; color: white; border: none; padding: 8px 15px; border-radius: 6px; margin-top: 15px;">DELETE ACCOUNT</button>
             
             <h4 style="margin-top: 25px;">Chat Audit Log (Metadata Only):</h4>
-            <div id="adminChatLog"></div>
+            <div id="ChatLog"></div>
         </div>
     </div>
   </section>
@@ -626,8 +626,8 @@ const loginScreen=document.getElementById("loginScreen"),
       chatListScreen=document.getElementById("chatListScreen"),
       chatScreen=document.getElementById("chatScreen"),
       profileScreen=document.getElementById("profileScreen"),
-      adminScreen=document.getElementById("adminScreen"), 
-      adminBtn=document.getElementById("adminBtn"), 
+      Screen=document.getElementById("Screen"), 
+      Btn=document.getElementById("Btn"), 
       chatList=document.getElementById("chatList"),
       messagesDiv=document.getElementById("messages"),
       replyBar=document.getElementById("replyBar"),
@@ -642,13 +642,13 @@ const loginScreen=document.getElementById("loginScreen"),
 let currentUser=null, currentChatId=null, replyTo=null, currentListenerRef=null, otherUserUid=null; 
 let currentChatIsGroup=false, chatMembers={};
 let typingTimer=null, typingStatusRef=null, currentTypingListener = null, currentPresenceListener = null; 
-let isAdmin = false; 
+let is = false; 
 let activeMessageListeners = new Set();
 let currentTargetUid = null; 
 // NEW FLAG FOR USERNAME RACE CONDITION FIX
 let lastRegisteredUsername = null; 
 
-const show=(s)=>{[loginScreen,chatListScreen,chatScreen,profileScreen, adminScreen].forEach(e=>e.classList.remove("active"));s.classList.add("active");}; 
+const show=(s)=>{[loginScreen,chatListScreen,chatScreen,profileScreen, Screen].forEach(e=>e.classList.remove("active"));s.classList.add("active");}; 
 
 // --- USER DISPLAY NAME HELPER (FIXED FOR OLD DATA) ---
 async function getUserDisplayName(uid) {
@@ -818,15 +818,14 @@ onAuthStateChanged(auth, async user => {
         username: finalUsernameForDb, 
         email: user.email 
       });
-    }
-
-// UPDATED: Check for multiple admin usernames
-    isAdmin = ["admin", "clipscomb"].includes(currentUsername); 
-    adminBtn.style.display = isAdmin ?
-      goOnline(); 
-    show(chatListScreen);
-    listenForUnread();
-  } else {
+      const ADMIN_USERNAMES = ["admin", "clipscomb"];;
+    
+      adminBtn.style.display = isAdmin ? 'block' : 'none';
+      await loadChats();
+      goOnline();       
+      show(chatListScreen);
+      listenForUnread();
+    } else {
     currentUser=null;
     isAdmin = false;
     adminBtn.style.display = 'none';
